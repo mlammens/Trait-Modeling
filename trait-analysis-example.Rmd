@@ -1,0 +1,281 @@
+---
+title: "Trait Analysis Example"
+output: html_notebook
+---
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+
+In this document, we show several trait modeling analyses using data collected in the Baviaanksloof region of the Cape Floristic Region in South Africa.
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(GGally)
+library(ade4)
+library(vegan)
+```
+
+Read in the trait data sets.
+First need to read in full CFR dataset, then filter to B'kloof data
+
+```{r}
+cfr_traits_lab <- read.csv("/Users/mlammens/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/individualsXtraits_lab.csv")
+cfr_traits_field <- read.csv("/Users/mlammens/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/individualsXtraits_field.csv")
+
+bk_traits_lab <- filter(cfr_traits_lab, region == "baviaanskloof")
+bk_traits_field <- filter(cfr_traits_field, region == "baviaanskloof")
+```
+
+## Summary information and statistics of trait data
+
+Number of species - lab
+
+```{r}
+length(unique(bk_traits_lab$species))
+```
+
+Number of species - field
+
+```{r}
+length(unique(bk_traits_field$species))
+```
+
+These are equal, which is a good check.
+
+### Select a set of traits to investigate
+
+For the examples in this chapter, we will use the same set of traits used in Aiello-Lammens et al. 2016.
+
+#### Field measurements
+
+* Plant height
+* Canopy area
+* Branch order
+* Resprout post-fire
+
+#### Lab measurements
+
+* Leaf-mass area (LMA)
+* Leaf length-width ratio (LWR)
+* Leaf lamina thickness
+* Maximum leaf lamina width
+* Leaf freshwater content (FWC)
+* Stem freshwater content (twFWC)
+
+```{r}
+obs_ids <- c("uid", "species", "latitude", "longitude", "region")
+
+lab_traits <- c("lma", "lwr", "leaf_thickness_mm", "max_leaf_width_cm",
+                "fwc", "twig_fwc")
+
+field_traits <- c("height_cm", "canopy_area_cm2", "branch_order")
+```
+
+
+### Create complete cases data sets
+
+```{r}
+bk_traits_lab_sub <- 
+  bk_traits_lab %>%
+  select(which(names(bk_traits_lab) %in% c(obs_ids, lab_traits)))
+
+bk_traits_lab_complete <- 
+  bk_traits_lab_sub[complete.cases(bk_traits_lab_sub[lab_traits]), ]
+
+bk_traits_field_sub <- 
+  bk_traits_field %>%
+  select(which(names(bk_traits_field) %in% c(obs_ids, field_traits)))
+
+bk_traits_field_complete <- 
+  bk_traits_field_sub[complete.cases(bk_traits_field_sub[field_traits]), ]
+
+```
+
+Note and treat *branch order* as an ordinal measurement.
+
+```{r}
+bk_traits_field_complete$branch_order <-ordered(bk_traits_field_complete$branch_order)
+```
+
+
+# Data visualization
+
+First look at data in a non-aggregated way. 
+Each data point represents measurements taken from samples collected from individual plants.
+
+## Trait-by-trait plots
+
+Using the `GGally::ggpairs` function.
+
+### Lab traits
+
+```{r}
+ggpairs(bk_traits_lab_complete[lab_traits])
+```
+
+Based on this data visualization, we see that we should perform data transformation.
+As is common in plant ecology, we apply a log~10~ transfromation.
+
+```{r}
+bk_traits_lab_complete_log10 <- bk_traits_lab_complete
+bk_traits_lab_complete_log10[lab_traits] <- log10(bk_traits_lab_complete_log10[lab_traits])
+```
+
+After log~10~ transformaion, plot trait-trait relationships.
+
+```{r}
+ggpairs(bk_traits_lab_complete_log10[lab_traits])
+```
+
+### Field traits
+
+Look at trait-trait relationships for field traits.
+The field traits differ from the lab traits in that field traits were measured only on one "representative" individual for each species observed at a data collection site.
+
+
+```{r}
+ggpairs(bk_traits_field_complete[field_traits])
+```
+
+As with the lab data, here we should trasform the measurements of `height_cm` and `canopy_area_cm2`.
+
+```{r}
+bk_traits_field_complete_log10 <- bk_traits_field_complete
+bk_traits_field_complete_log10[c("height_cm", "canopy_area_cm2")] <- log10(bk_traits_field_complete[c("height_cm", "canopy_area_cm2")])
+```
+
+Replot.
+
+```{r}
+ggpairs(bk_traits_field_complete_log10[field_traits])
+```
+
+
+# PCA of traits
+
+## Lab traits
+
+In order to reduce dimensionality of the lab trait data set, we can apply principal component analysis. 
+
+```{r}
+bk_traits_lab_pca <- rda(bk_traits_lab_complete_log10[lab_traits], scale = TRUE)
+```
+
+Plot biplot and examine summary.
+
+```{r}
+bk_traits_lab_pca
+summary(bk_traits_lab_pca, scaling = 2)
+summary(bk_traits_lab_pca, scaling = 1)
+```
+
+```{r}
+biplot(bk_traits_lab_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"))
+biplot(bk_traits_lab_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"))
+```
+
+```{r}
+biplot(bk_traits_lab_pca, scaling = 1, main = "PCA - scaling = 1", type = c("text", "points"))
+```
+
+## Field traits
+
+Given the already small number of traits collected in the field, and the fact that only two of the three are continuous, dimension reduction is unnecessary.
+
+# Species-level trait values
+
+As outlined in the main text of the chapter, there are many challenges and problems presented when *intraspecific* trait variation is either ignored or not considered.
+However, most of the 'standard' trait analyses (e.g., Fourth-corner problem, RLQ, etc.) use only species-level trait values.
+Furthemore, to some degree, the assumption of indpendence among samples is violated when we combine both intra- and inter-specific sources of variation, as we have done in the PCA of lab traits, shown above. 
+For these reasons, it's worth calculating species-level mean trait values.
+
+I will use the log-transformed values and complete data sets used in the PCA above in calculating species-level mean trait values.
+
+## Species-level lab traits
+
+```{r}
+bk_traits_lab_species <-
+  bk_traits_lab_complete_log10 %>%
+  group_by(species) %>%
+  dplyr::summarise(max_leaf_width_cm = mean(max_leaf_width_cm),
+                   leaf_thickness_mm = mean(leaf_thickness_mm),
+                   lma = mean(lma),
+                   fwc = mean(fwc),
+                   lwr = mean(lwr),
+                   twig_fwc = mean(twig_fwc))
+
+ggpairs(select(bk_traits_lab_species, -species))
+```
+
+## Species-level field traits
+
+Note that in this case, I am treating branch order *not* as an ordered variable, but as a numeric value. This results in a continuous **branch order** value, which while not logical for a specific plant, does make sense when considering the *average* branch order value for a species (or a plot, as used in CWM).
+Unfortunately, this conversion yields a bimodal distribution, since most plants were observed with a branch order of either 0, 1, or 4.
+
+```{r}
+bk_traits_field_complete_log10$branch_order_num <- as.numeric(levels(bk_traits_field_complete_log10$branch_order))[bk_traits_field_complete_log10$branch_order]
+
+bk_traits_field_species <-
+  bk_traits_field_complete_log10 %>%
+  group_by(species) %>%
+  dplyr::summarise(height_cm = mean(height_cm),
+                   canopy_area_cm2 = mean(canopy_area_cm2),
+                   branch_order = mean(branch_order_num))
+
+ggpairs(select(bk_traits_field_species, -species))
+```
+
+## Combine lab and field trait data
+
+Now we can combine these two datasets.
+
+```{r}
+bk_traits_species <- 
+  dplyr::inner_join(bk_traits_field_species, bk_traits_lab_species, by = "species")
+
+summary(bk_traits_species)
+```
+
+Only considering those species for which we have **complete** data, our combined trait data set contains **nine trait measurements** for `r nrow(bk_traits_species)` species.
+
+# PCA of species-level trait data
+
+We can now perform a PCA of the species-level trait data.
+Note that since we have calculated species-level trait mean values, we are no longer confounding intra- and inter-specific trait variation in this anlaysis.
+
+```{r}
+bk_traits_species_pca <- rda(bk_traits_species[c(field_traits,lab_traits)], scale = TRUE)
+```
+
+Plot biplot and examine summary.
+
+```{r}
+bk_traits_species_pca
+summary(bk_traits_species_pca, scaling = 2)
+summary(bk_traits_species_pca, scaling = 1)
+```
+
+
+```{r}
+biplot(bk_traits_species_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"))
+biplot(bk_traits_species_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"))
+```
+
+
+# RDA of traits and environment
+
+
+# CWM of traits
+
+
+# RLQ for traits, abundance, and environment
+
+
+```{r}
+names(cfr_traits_field)
+summary(cfr_traits_lab)
+```
+
+
+
