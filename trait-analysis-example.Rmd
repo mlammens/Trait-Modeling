@@ -17,7 +17,13 @@ library(vegan)
 ```
 
 Read in the trait data sets.
-First need to read in full CFR dataset, then filter to B'kloof data
+First need to read in full CFR dataset, then filter to B'kloof data.
+Following the notation of Dray and colleagues (REFS), these two datasets are used to construct the **Q** matrix.
+The **Q** matrix is the $p \times s$ table describing $s$ traits for $p$ species. 
+By convention, each species is assigned a single value for each trait, usually an average if the trait is measured on a continuous scale.
+In our datasets, we have multiple measurements per species, so we must *reduce* our data, resulting in a loss of some of our collected information.
+Essentially, this process ignores *intra-specific* variation.
+It remains unclear what role *intra-specific* variation plays in determining the patterns of trait by environment relationships in real communities.
 
 ```{r}
 cfr_traits_lab <- read.csv("/Users/mlammens/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/individualsXtraits_lab.csv")
@@ -261,6 +267,39 @@ summary(bk_traits_species_pca, scaling = 1)
 biplot(bk_traits_species_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"))
 biplot(bk_traits_species_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"))
 ```
+
+
+
+## Read in environmental data
+
+We have two sets of environmental data to consider.
+The first is the observations of environmental conditions at the sites were trait data were collected.
+The second is the observations of environmental conditions at the *plots* were species relative percent cover values were collected. 
+These locations were nearby to each other, but not exactly matching.
+The dataset of environmental conditions at the plots corresponds to the **R** matrix, following the notation of Dray and colleagues. 
+This matrix is an $n \times m$ table of measurements of $m$ environmental variables taken at $n$ plots or sites.
+
+
+```{r}
+cfr_env_plots <- read.csv("/Users/mlammens/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/plotXenv.csv")
+cfr_env_fieldsites <- read.csv("/Users/mlammens/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/field_collXenv.csv")
+bk_env_plots <- filter(cfr_env_plots, region == "baviaanskloof")
+bk_env_fieldsites <- filter(cfr_env_fieldsites, region == "baviaanskloof")
+```
+
+### Summary information and variable selection
+
+For this example analysis, we're going to rely on the environmental variable selection already used in Aiello-Lammens et al. (2016). 
+The environmental variables used included minimum temperature in July (MTmin.07), maximum temperature in January (MTmax.01), aspect (separately as northerness and easterness), solar radiation, and elevation.
+
+```{r}
+plot_ids <- c("plot_smpl", "latitutde", "longitude", "region")
+fieldsite_ids <- c("latitude", "longitude", "region")
+env_vars <- c("MTmin.07", "MTmax.01", "northerness", "easterness", "solar_rad", "altitude")
+```
+
+
+
 
 
 # RDA of traits and environment
