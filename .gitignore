@@ -6,6 +6,8 @@
 # Misc files
 vert.txt
 *.html
+misc/*
 
 # Data files that should/could be remade
 *.csv
+
