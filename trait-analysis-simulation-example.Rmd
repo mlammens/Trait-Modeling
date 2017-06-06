@@ -1,0 +1,240 @@
+---
+title: "Trait Analysis Simulation Example"
+output: 
+  html_notebook: 
+    toc: yes
+---
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+
+In this document, we show several trait modeling analyses using data collected in the Baviaanksloof region of the Cape Floristic Region in South Africa.
+
+```{r, message=FALSE}
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(GGally)
+library(ade4)
+library(vegan)
+library(reshape2)
+library(FD)
+```
+
+Read in the simulated trait data sets.
+These data were simulated using the script `construct-sim-data.Rmd`.
+
+Following the notation of Dray and colleagues (REFS), we will have a **Q** matrix.
+The **Q** matrix is the $p \times s$ table describing $s$ traits for $p$ species. 
+By convention, each species is assigned a single value for each trait, usually an average if the trait is measured on a continuous scale.
+In our datasets, we have multiple measurements per species, so we must *reduce* our data, resulting in a loss of some of our collected information.
+Essentially, this process ignores *intra-specific* variation.
+It remains unclear what role *intra-specific* variation plays in determining the patterns of trait by environment relationships in real communities.
+
+```{r}
+indXtraits <- read.csv("individualsXtraits_sim.csv")
+q_sim <- indXtraits %>% group_by(spec) %>% 
+  summarise(lma = mean(lma),
+            c_to_n = mean(c_to_n),
+            succulence = mean(succulence))
+```
+
+
+# Data visualization
+
+First look at data in a non-aggregated way. 
+Each data point represents measurements taken from samples collected from individual plants.
+
+## Trait-by-trait plots
+
+Using the `GGally::ggpairs` function.
+
+```{r}
+ggpairs(indXtraits[3:5])
+```
+
+
+# PCA of individual-level traits
+
+In order to reduce dimensionality of the trait data set, we can apply principal component analysis. 
+
+```{r}
+indXtraits_pca <- rda(indXtraits[3:5], scale = TRUE)
+```
+
+Plot biplot and examine summary.
+
+```{r}
+indXtraits_pca
+```
+
+```{r, eval=FALSE}
+summary(indXtraits_pca, scaling = 2)
+summary(indXtraits_pca, scaling = 1)
+```
+
+
+```{r}
+biplot(indXtraits_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"))
+biplot(indXtraits_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"))
+```
+
+```{r}
+biplot(indXtraits_pca, scaling = 1, main = "PCA - scaling = 1", type = c("text", "points"))
+```
+
+
+# Species-level trait values
+
+As outlined in the main text of the chapter, there are many challenges and problems presented when *intraspecific* trait variation is either ignored or not considered.
+However, most of the 'standard' trait analyses (e.g., Fourth-corner problem, RLQ, etc.) use only species-level trait values.
+Furthemore, to some degree, the assumption of indpendence among samples is violated when we combine both intra- and inter-specific sources of variation, as we have done in the PCA of traits shown above. 
+For these reasons, it's worth calculating species-level mean trait values, i.e. the Q matrix described above.
+
+### Species-level trait-trait relationships
+
+```{r}
+ggpairs(select(q_sim, -spec))
+```
+
+
+### PCA of species-level trait data
+
+We can now perform a PCA of the species-level trait data.
+Note that since we have calculated species-level trait mean values, we are no longer confounding intra- and inter-specific trait variation in this anlaysis.
+We're not going to actually do these calculations for the simulated data since the dimenions are already very low (trait space = 3d, env space = 2d).
+
+
+# Read in environmental data
+
+The dataset of environmental conditions at the plots corresponds to the **R** matrix, following the notation of Dray and colleagues. 
+This matrix is an $n \times m$ table of measurements of $m$ environmental variables taken at $n$ plots or sites.
+
+
+```{r}
+r_sim <- read.csv("plotXenv_sim.csv")
+```
+
+### Exploritory analysis of environmental data
+
+Use `ggpairs` to examine distributional patterns of environmental variables and correlation among variables.
+
+```{r}
+ggpairs(r_sim[-1])
+```
+
+
+
+# Individual-level Trait by environment relationships
+
+We can look for associations between trait values and environmental. 
+This form of analysis is important in trait by environment analyses, but generally not available if species-level trait values are being used.
+That is, this kind of analysis is best done for individuals.
+
+### Make combined trait and field site environment datasets
+
+```{r}
+## Make a combined data.frame for plotting
+traitsXspeciesXenv <- merge(indXtraits, r_sim, by = "plot")
+
+## Melt this data.frame in a two-step process
+traitsXspeciesXenv_m <- melt(traitsXspeciesXenv, 
+                             measure.vars = c("ev1", "ev2"), 
+                             variable.name = "ev_var", value.name = "ev_val")
+traitsXspeciesXenv_m <- melt(traitsXspeciesXenv_m,
+                             measure.vars = c("lma", "c_to_n", "succulence"), 
+                             variable.name = "trait_var", value.name = "trait_val")
+
+## Make plots
+ggplot(data = traitsXspeciesXenv_m, aes(x = ev_val, y = trait_val, colour = spec)) +
+  geom_point() +
+  facet_grid(trait_var ~ ev_var, scales = "free") +
+  geom_smooth() +
+  theme_bw()
+```
+
+
+
+### Linear regression models
+
+```{r}
+traitXenv_ols_models <- 
+  traitsXspeciesXenv_m %>%
+  group_by(trait_var, ev_var ) %>% 
+  do( mod = lm( trait_val ~ ev_val, data = . ) )
+
+traitXenv_ols_models <- 
+  mutate( traitXenv_ols_models, r_sqrd = summary(mod)$adj.r.squared )
+
+traitXenv_ols_models_summary <-
+  traitXenv_ols_models %>% 
+  do(data.frame( var = names(coef(.$mod)),
+                 coef(summary(.$mod))))
+
+```
+
+
+
+# Community Level Data
+
+### Read in the plot-level abundance data
+
+This is equivelant to the **L** matrix, following the notation of Dray et al..
+The **L** matrix is a $n \times p$ table of abundances (or occurrences) of $p$ species in $n$ sites (or plots).
+
+```{r}
+l_sim <- read.csv("plotXspec_abund_sim.csv")
+```
+
+
+
+## RDA of CWM traits with environment
+
+
+### CWM of traits
+
+Use the `FD` package to calculate Community Weighted Mean trait values.
+
+```{r}
+## Make two data.frames, properily formated for FD functions
+q_sim_mod <- q_sim[-1]
+row.names(q_sim_mod) <- q_sim$spec
+l_sim_mod <- l_sim[-1]
+l_sim_mod <- l_sim_mod[sort(names(l_sim_mod))]
+
+
+sim_dbFD_traits <-
+  dbFD( x = q_sim_mod, 
+        a = l_sim_mod,
+        w.abun = TRUE, 
+        calc.FDiv = TRUE, 
+        calc.CWM = TRUE,
+        corr = "cailliez" )
+
+```
+
+
+```{r}
+## Get the CWM value data.frame
+cwm_traits <- sim_dbFD_traits$CWM
+cwm_traits$plot <- l_sim$plot
+```
+
+#### Plot CWM trait-trait relationships
+
+```{r}
+ggpairs(select(cwm_traits, -plot))
+```
+
+
+
+
+
+# RLQ for traits, abundance, and environment
+
+
+```{r}
+```
+
+
+

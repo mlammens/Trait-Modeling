@@ -1,0 +1,11 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Misc files
+vert.txt
+*.html
+
+# Data files that should/could be remade
+*.csv

@@ -1,6 +1,8 @@
 ---
 title: "Trait Analysis Example"
-output: html_notebook
+output: 
+  html_notebook: 
+    toc: yes
 ---
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
@@ -10,10 +12,13 @@ In this document, we show several trait modeling analyses using data collected i
 
 ```{r}
 library(ggplot2)
+library(plyr)
 library(dplyr)
 library(GGally)
 library(ade4)
 library(vegan)
+library(reshape2)
+library(FD)
 ```
 
 Read in the trait data sets.
@@ -158,7 +163,7 @@ ggpairs(bk_traits_field_complete_log10[field_traits])
 ```
 
 
-# PCA of traits
+# PCA of individual-level traits
 
 ## Lab traits
 
@@ -298,7 +303,212 @@ fieldsite_ids <- c("latitude", "longitude", "region")
 env_vars <- c("MTmin.07", "MTmax.01", "northerness", "easterness", "solar_rad", "altitude")
 ```
 
+#### Create complete cases data sets
 
+```{r}
+bk_env_plots_sub <- 
+  bk_env_plots %>%
+  select(which(names(bk_env_plots) %in% c(plot_ids, env_vars)))
+bk_env_plots_complete <-
+  bk_env_plots_sub[complete.cases(bk_env_plots_sub), ]
+
+bk_env_fieldsites_sub <- 
+  bk_env_fieldsites %>%
+  select(which(names(bk_env_fieldsites) %in% c(fieldsite_ids, env_vars)))
+bk_env_fieldsites_complete <-
+  bk_env_fieldsites_sub[complete.cases(bk_env_fieldsites_sub), ]
+
+```
+
+
+#### EDA of environmental data
+
+Use `ggpairs` to examine distributional patterns of environmental variables and correlation among variables.
+
+##### Environmental variables at Plots
+
+```{r}
+ggpairs(bk_env_plots_complete[env_vars])
+```
+
+
+##### Environmental variables at Field Sites
+
+Note that there is a 'circular' relationship between easterness and northerness.
+This is because they are derived from the same environmental value (aspect). 
+We also must note that there are strong correlations between MTmin.07 and MTmax.01, and between both of these variables and Elevation.
+This is to be expected, and basically shows that as elevation goes up, temperature goes down, and locations with warmer (colder) winters have warmer (colder) summers.
+
+```{r}
+ggpairs(bk_env_fieldsites_complete[env_vars])
+```
+
+# Individual-level Trait by environment relationships - field sites
+
+We can look for associations between trait values and environmental values at the field sites where trait measurments were made. 
+This form of analysis is important in trait by environment analyses, but generally not available if species-level trait values are being used.
+That is, this kind of analysis is best done for individuals.
+
+### Make combined trait and field site environment datasets
+
+```{r}
+bk_traits_field_env <- 
+  inner_join(bk_traits_field_complete_log10, bk_env_fieldsites_complete)
+bk_traits_lab_env <-
+  inner_join(bk_traits_lab_complete_log10, bk_env_fieldsites_complete)
+```
+
+### Make simple plots of trait x environment relationships
+
+#### Field traits
+
+```{r}
+bk_traits_field_env_m <-
+  melt(bk_traits_field_env, measure.vars = c("height_cm", "canopy_area_cm2", "branch_order_num"), variable.name = "Trait", value.name = "Trait.Val")
+bk_traits_field_env_m <-
+  melt(bk_traits_field_env_m, measure.vars = env_vars, variable.name = "Env", value.name = "Env.Val")
+```
+
+Make plot
+
+```{r}
+ggplot(bk_traits_field_env_m, aes(x = Env.Val, y = Trait.Val)) +
+  geom_point() +
+  geom_smooth() +
+  facet_grid(Trait ~ Env, scales = "free")
+```
+
+#### Lab traits
+
+```{r}
+bk_traits_lab_env_m <-
+  melt(bk_traits_lab_env, measure.vars = lab_traits, variable.name = "Trait", value.name = "Trait.Val")
+bk_traits_lab_env_m <-
+  melt(bk_traits_lab_env_m, measure.vars = env_vars, variable.name = "Env", value.name = "Env.Val")
+```
+
+Make plot
+
+```{r}
+ggplot(bk_traits_lab_env_m, aes(x = Env.Val, y = Trait.Val)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_grid(Trait ~ Env, scales = "free")
+```
+
+### Linear regression models
+
+```{r}
+traitXenv_ols_models <- 
+  bk_traits_lab_env_m %>%
+  group_by(Trait, Env ) %>% 
+  do( mod = lm( Trait.Val ~ Env.Val, data = . ) )
+
+traitXenv_ols_models <- 
+  mutate( traitXenv_ols_models, r_sqrd = summary(mod)$adj.r.squared )
+
+traitXenv_ols_models_summary <-
+  traitXenv_ols_models %>% 
+  do(data.frame( var = names(coef(.$mod)),
+                 coef(summary(.$mod))))
+
+```
+
+# Species-level trait by environment variables
+
+This analysis applies only to the lab trait data. At each site, multiple individuals for each species were sampled to measure leaf traits. By grouping at the field-site and species levels, we can ignore intra-species - intra-site level variation.
+
+```{r}
+bk_traits_lab_species_fieldsite <-
+  bk_traits_lab_env %>%
+  group_by(uid, species) %>%
+  summarise(latitude = unique(latitude), longitude = unique(longitude), region = unique(region),
+            max_leaf_width_cm = mean(max_leaf_width_cm),
+            leaf_thickness_mm = mean(leaf_thickness_mm),
+            lma = mean(lma),
+            fwc = mean(fwc),
+            lwr = mean(lwr),
+            twig_fwc = mean(twig_fwc),
+            MTmax.01 = unique(MTmax.01),
+            MTmin.07 = unique(MTmin.07),
+            altitude = unique(altitude),
+            solar_rad = unique(solar_rad),
+            northerness = unique(northerness),
+            easterness = unique(easterness))
+```
+
+Melt dataset
+
+```{r}
+bk_traits_lab_species_fieldsite_m <-
+  melt(bk_traits_lab_species_fieldsite, measure.vars = lab_traits, variable.name = "Trait", value.name = "Trait.Val")
+bk_traits_lab_species_fieldsite_m <-
+  melt(bk_traits_lab_species_fieldsite_m, measure.vars = env_vars, variable.name = "Env", value.name = "Env.Val")
+```
+
+Make plot
+
+```{r}
+ggplot(bk_traits_lab_species_fieldsite_m, aes(x = Env.Val, y = Trait.Val)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_grid(Trait ~ Env, scales = "free")
+```
+
+
+# Community Level Data
+
+## Read in the community level data
+
+The community level data are from surveys that measured relative percent cover for each species in 10 x 5 meter plots in the Baviaanskloof region. 
+In this case, we will only use the "A" plots.
+
+
+```{r}
+plotXspecies_cover <-
+  read.csv("/Users/mlammens/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/plotXspecies_cover.csv")
+bk_plotXspecies_cover <- filter(plotXspecies_cover, region == "baviaanskloof", historic == 0)
+bk_plotXspecies_cover <- bk_plotXspecies_cover[ which(grepl(pattern = "a", x = bk_plotXspecies_cover$plot)), ]
+bk_plotXspecies_cover <- 
+  bk_plotXspecies_cover %>%
+  select(plot_smpl, latitude, longitude, species, perc_cover, rel_perc_cover)
+```
+
+In order to convert this into the **L** matrix, following the notation of Dray et al., we need to reshape the dataset from long to wide. 
+The **L** matrix is a $n \times p$ table of abundances (or occurrences) of $p$ species in $n$ sites (or plots).
+
+```{r}
+pXs <- dcast(data = bk_plotXspecies_cover, 
+             formula = plot_smpl ~ species,
+             value.var = "rel_perc_cover")
+
+## Convert nas to 0
+pXs[ is.na(pXs) ] <- 0
+
+## Assign plots to row.names
+row.names( pXs ) <- pXs$plot_smpl
+pXs <- dplyr::select( pXs, -plot_smpl )
+
+```
+
+
+### Determine which species are in both the trait and plot datasets
+
+```{r}
+spec_both <- intersect( bk_traits_species$species, names(pXs) )
+
+## Extract only those species with traits from both the pXs and tXs data.frames
+pXs_forCWM <- pXs[ spec_both ]
+tXs_forCWM <- filter(bk_traits_species, species %in% spec_both )
+
+# ## Remove plots that are "empty" after removing species w/o traits
+# pXs_forCWM <- pXs_forCWM[ -which( apply( pXs_forCWM, MARGIN = 1, FUN = sum ) == 0 ), ]
+
+## Name rows of tXs_forCWM data.frame
+row.names( tXs_forCWM ) <- tXs_forCWM$species
+tXs_forCWM$species <- NULL
+
+```
 
 
 
@@ -306,6 +516,89 @@ env_vars <- c("MTmin.07", "MTmax.01", "northerness", "easterness", "solar_rad", 
 
 
 # CWM of traits
+
+Use the `FD` package to calculate Community Weighted Mean trait values.
+
+```{r}
+bk_dbFD_traits <-
+  dbFD( x = tXs_forCWM, 
+        a = pXs_forCWM,
+        w.abun = TRUE, 
+        calc.FDiv = TRUE, 
+        calc.CWM = TRUE,
+        corr = "cailliez" )
+
+```
+
+
+```{r}
+## Get the CWM value data.frame
+bk_cwm_traits <- bk_dbFD_traits$CWM
+bk_cwm_traits$plot <- row.names( bk_cwm_traits )
+
+## Use only complete cases
+bk_cwm_traits <- bk_cwm_traits[ complete.cases(bk_cwm_traits), ]
+
+```
+
+
+
+### PCA of CWM trait values
+
+```{r}
+## Calculate PCA of CWM values
+bk_cwm_traits_pca <- rda( bk_cwm_traits[ c(lab_traits, field_traits) ], scale = TRUE )
+bk_cwm_traits_pca$CA$eig / sum( bk_cwm_traits_pca$CA$eig )
+cumsum( bk_cwm_traits_pca$CA$eig / sum( bk_cwm_traits_pca$CA$eig ) )
+
+## Extract various PCA values and scores for plotting in ggplot
+## -------------------------------------------------------------------------- ##
+
+## Extract the PCA scores
+bk_cwm_traits_pca_scores <- scores(bk_cwm_traits_pca, choices = 1:length(c(lab_traits, field_traits)))$sites
+
+## Convert to data.frame
+bk_cwm_traits_pca_scores <- as.data.frame( bk_cwm_traits_pca_scores )
+bk_cwm_traits_vars_pca <- names( bk_cwm_traits_pca_scores )
+
+## Add the pca scores back to the bk_cwm_traits data.frame
+bk_cwm_traits <- cbind( bk_cwm_traits, bk_cwm_traits_pca_scores )
+
+## Extract loadings
+bk_cwm_traits_pca_loadings <- 
+  scores(bk_cwm_traits_pca, choices = 1:length(c(lab_traits, field_traits)))$species 
+
+## Convert to data.frame
+bk_cwm_traits_pca_loadings <- as.data.frame( bk_cwm_traits_pca_loadings )
+## Add a column for env_var
+bk_cwm_traits_pca_loadings$env_var <- row.names(bk_cwm_traits_pca_loadings)
+
+
+```
+
+```{r}
+ggplot() +
+  geom_segment( data = bk_cwm_traits_pca_loadings, 
+                aes( x = 0, xend = PC1*.2,
+                     y = 0, yend = PC2*.2 ),
+                arrow = arrow( length = unit(0.25, "cm" )), 
+                colour = "black") +      
+  geom_point( data = bk_cwm_traits, 
+              aes( x = PC1, y = PC2 ),
+              alpha = 0.6 ) +
+ geom_text( data = bk_cwm_traits_pca_loadings, 
+             aes(x= PC1*.2, y = PC2*.2,
+                 label = env_var ),
+             size = 4,
+             hjust = 0.5 ) + 
+  coord_equal() +
+  xlab( "PC1" ) +
+  ylab( "PC2" ) +
+  theme_bw() +
+  theme( text = element_text(family = "Times", size = 18) )
+```
+
+
 
 
 # RLQ for traits, abundance, and environment

@@ -1,0 +1,308 @@
+---
+title: "Construct Simulation Data for Trait Analysis"
+author: "Matthew E. Aiello-Lammens"
+output: 
+  html_document: 
+    toc: yes
+---
+
+# Packages used
+
+```{r, message=FALSE}
+library(dplyr)
+```
+
+
+# Plots and Environmental Conditions
+
+* Two environmental variables (EVs)
+* 100 plots
+
+Let's assume a gradient for both EVs and that the EVs are **independent** from each other.
+
+### Set gradients
+
+Set two environmental variables based on observations in the CFR. 
+**ev1** represents the average maximum temperature in January and **ev2** is a metric of rainfall seasonality -- (winter rain - summer rain) / (winter rain + summer rain), where winter = 04 to 09 and summer = 10 to 03.
+Both environmental variables were scaled to have a mean of 0 and variance of 1 using the full dataset.
+
+```{r}
+ev1 <- seq(-2.6, 2.6, length.out = 10)
+ev2 <- seq(-1.9, 1.9, length.out = 10)
+```
+
+Make the env dataset
+
+```{r}
+env <- data.frame(plot = paste0("plot_",1:100), 
+                  ev1 = rep(ev1, times = 10), 
+                  ev2 = rep(ev2, each =10))
+```
+
+# Species Abundance
+
+* Abundance patterns of **20** species in 100 plots, based on environment
+
+### Set niche optimums
+
+* sp1: ev1 = low, ev2 = low
+* sp2: ev1 = med, ev2 = med
+* sp3: ev1 = high, ev2 = high
+* sp4: ev1 = high, ev2 = low
+
+```{r}
+spp_opts <- data.frame(sp = 1:20, 
+                       env1 = runif(20, min = min(env$ev1), max = max(env$ev1)),
+                       env2 = runif(20, min = min(env$ev2), max = max(env$ev2)))
+
+# sp1_opt <- c(min(env$ev1), min(env$ev2))
+# sp2_opt <- c(0, 0)
+# sp3_opt <- c(max(env$ev1), max(env$ev2))
+# sp4_opt <- c(max(env$ev1), min(env$ev2))
+```
+
+Draw abundance values separately for the two axes, then combine them.
+To draw abundance, I'm approximately following Kleyer et al. 2012.
+The first step is to assume a Gaussian response curve with:
+
+$$
+z = c * e^{(\frac{-0.5*(x-u)^2}{t^2})}
+$$
+
+where $c$ is the maximum abundance (set to 10 for each EV axis), $x$ is the EV vector, $u$ is the optimum EV value for a given species, and $t$ is the niche breadth for each species, here set to 1.
+
+The resulting $z$ values are then used to draw random values from a Poisson distribution, with $\lambda = z$.
+
+Write a function to calculate abundances.
+
+```{r}
+get_abundance <- function(ev1, ev2, ev1_opt, ev2_opt, c = 10, t = 1){
+  
+  ## Make Gaussian reponse
+  ev1_gaus <- c*exp(-.5 * (ev1 - ev1_opt)^2 / t^2)
+  ev2_gaus <- c*exp(-.5 * (ev2 - ev2_opt)^2 / t^2)
+  
+  ## Draw abundance values from a Poisson distribution
+  ev1_abund <- rpois(n = length(ev1_gaus), lambda = ev1_gaus)
+  ev2_abund <- rpois(n = length(ev2_gaus), lambda = ev2_gaus)
+  
+  ## Add the two columns together
+  abund <- ev1_abund + ev2_abund
+  
+  return(abund)
+}
+```
+
+Calculate abundances for each of the species
+
+```{r}
+spp_abund <- matrix(data = rep(NA,2000), nrow = nrow(env), ncol = nrow(spp_opts))
+  
+for(p in 1:nrow(env)){
+  for(sp in 1:nrow(spp_opts)){
+    spp_abund[p, sp] <- get_abundance(env$ev1[p], env$ev2[p], ev1_opt = spp_opts$env1[sp], ev2_opt = spp_opts$env2[sp], c = 5)
+  }
+}
+
+## Make the abundance matrix into a data.frame
+spp_abund <- as.data.frame(spp_abund)
+
+## Rename the columns
+names(spp_abund) <- paste0("sp",1:nrow(spp_opts))
+
+## Add the plot numbers
+spp_abund <- cbind(env["plot"], spp_abund)
+
+```
+
+# Functional Trait Values
+
+* **Three** functional traits for each plant
+* Trait values are function of environmental conditions
+* Two traits are positively correlated 
+* Traits are **species independent**
+
+
+### Trait functions
+
+Because traits are **species independent**, we can calculate the trait values for each plot.
+
+#### Original
+
+These are the relationships based on fitted linear regressions using the CFR data
+
+* LMA = -3.9 + (-0.13)\*ev1 + 0.02\*ev2 + $\epsilon$
+* C:N ratio = 3.9 + (-0.23)\*ev1 + (-0.05)\*ev2 + $\epsilon$
+* Succulence = -3.4 + 0.10\*ev1 + 0.11\*ev2 + $\epsilon$
+
+The code below is not executed.
+
+```{r betas_orig, eval=FALSE}
+## Make a matrix for the trait values at each plot
+traits_plot <- data.frame(plot = spp_abund$plot)
+
+## LMA
+traits_plot$lma <- -3.9 - 0.13*env$ev1 + 0.02*env$ev2
+
+## C:N ratio
+traits_plot$c_to_n <- 3.9 - 0.23*env$ev1 - 0.05*env$ev2
+
+## Succulence
+traits_plot$succulence <- -3.4 + 0.10*env$ev1 + 0.11*env$ev2
+```
+
+#### Modified
+
+These are the exagerrated values, to make relationships stronger
+
+* LMA = -3.9 + (-0.8)\*ev1 + 0.5\*ev2 + $\epsilon$
+* C:N ratio = 3.9 + (-0.8)\*ev1 + (-0.5)\*ev2 + $\epsilon$
+* Succulence = -3.4 + 0.5\*ev1 + 0.5\*ev2 + $\epsilon$
+
+```{r betas_mod}
+## Make a matrix for the trait values at each plot
+traits_plot <- data.frame(plot = spp_abund$plot)
+
+## LMA
+traits_plot$lma <- -3.9 - 0.8*env$ev1 + 0.5*env$ev2
+
+## C:N ratio
+traits_plot$c_to_n <- 3.9 - 0.8*env$ev1 - 0.5*env$ev2
+
+## Succulence
+traits_plot$succulence <- -3.4 + 0.5*env$ev1 + 0.5*env$ev2
+```
+
+
+Create a data.frame that has a trait value for each plant observed in the dataset.
+
+```{r}
+## The number of rows in the plot-individual trait data.frame is equal to the total number of individuals
+tot_individuals <- sum(spp_abund[-1])
+
+## The number of columns is equal to the number of traits, plus columns for plot and species IDs
+## Make an empty array
+spp_traits <- vector()
+spp_traits_temp <- vector()
+
+## Use a for loop to fill the traits matrix
+for(p in 1:nrow(spp_abund)){
+  for(s in 2:ncol(spp_abund)){
+    ## Get the number of individuals for species 's' in plot 'p'
+    n_ind <- spp_abund[p, s]
+    
+    ## Assign plot and species in spp_traits matrix
+    spp_traits_temp <- data.frame(plot = rep(spp_abund[p,1], n_ind),
+                                  spec = rep(names(spp_abund[s]), n_ind))
+        
+    for(t in 2:ncol(traits_plot)){
+      ## Go thru each of the traits and assign them to this species in this plot
+      spp_traits_temp <- cbind(spp_traits_temp, rep(traits_plot[p,t], n_ind))
+      names(spp_traits_temp)[t+1] <- names(traits_plot)[t]
+      
+    }
+    
+    # Once all of the traits have been added, then add this to the full matrix
+    spp_traits <- rbind(spp_traits, spp_traits_temp)
+  }
+}
+
+```
+
+Draw trait **errors** using `mvrnorm`. Assume a mean of 0s (a vector of 0s) and a var/co-var matrix of:
+
+0.5   0.5   0.0 \\
+0.5   0.5   0.0 \\
+0.0   0.0   1.0 \\
+
+```{r}
+library(MASS)
+
+## Set covariance matrix
+trait_cov <- matrix(c(0.2, 0.2, 0.00,
+                      0.2, 0.4, 0.00,
+                      0.00, 0.00, 0.4), 
+                    nrow = 3, byrow = TRUE)
+
+## Generate errors
+traits_error <- mvrnorm(n = nrow(spp_traits), 
+                        mu = c(0,0,0), 
+                        Sigma = trait_cov)
+
+## Add error to traits
+spp_traits$lma    <- spp_traits$lma + traits_error[, 1]
+spp_traits$c_to_n      <- spp_traits$c_to_n + traits_error[, 2]
+spp_traits$succulence <- spp_traits$succulence + traits_error[, 3]
+
+```
+
+
+# Diagnostic plots
+
+### Trait by environment relationships
+
+```{r}
+library(ggplot2)
+library(reshape2)
+
+## Make a combined data.frame for plotting
+traitsXspeciesXenv <- merge(spp_traits, env, by = "plot")
+
+## Melt this data.frame in a two-step process
+traitsXspeciesXenv_m <- melt(traitsXspeciesXenv, 
+                             measure.vars = c("ev1", "ev2"), 
+                             variable.name = "ev_var", value.name = "ev_val")
+traitsXspeciesXenv_m <- melt(traitsXspeciesXenv_m,
+                             measure.vars = c("lma", "c_to_n", "succulence"), 
+                             variable.name = "trait_var", value.name = "trait_val")
+
+## Make plots
+ggplot(data = traitsXspeciesXenv_m, aes(x = ev_val, y = trait_val, colour = spec)) +
+  geom_point() +
+  facet_grid(trait_var ~ ev_var, scales = "free") +
+  geom_smooth() +
+  theme_bw()
+
+```
+
+### Species abundance by plot relationships
+
+```{r}
+spp_abund_long <- tidyr::gather(spp_abund, "spec", "n", 2:21)
+
+spp_abund_long$plot_num <- as.numeric(gsub(x = spp_abund_long$plot, pattern = "plot_", replacement = ""))
+
+ggplot(data = spp_abund_long, aes(x = plot_num, y = n, colour = spec)) +
+  geom_point() +
+  geom_smooth()
+```
+
+
+# Reshape datasets and save as csv files
+
+```{r, message=FALSE}
+library(tidyr)
+library(reshape2)
+
+## -------------------------------------------------------------------------- ##
+## Save plotXenv dataset
+write.csv(file = "plotXenv_sim.csv", x = env, row.names = FALSE)
+
+## -------------------------------------------------------------------------- ##
+## Save plotXspec_abund dataset
+write.csv(file = "plotXspec_abund_sim.csv", x = spp_abund, row.names = FALSE)
+
+## -------------------------------------------------------------------------- ##
+## Save individualsXtraits dataset
+write.csv(file = "individualsXtraits_sim.csv", x = spp_traits, row.names = FALSE)
+
+```
+
+# Caveats
+
+* Each of the four species follow the same trait X environment relationships. 
+That is, while each species is more abundant in specific environmental conditions, as stipulated by their optimum environment values, traits were simulated for each individual using the same trait by env relationships.
+
+* Strictly speaking, these data are far more complete than is typically used in RLQ (or fourth-corner) problems.
+That is because here we have simulated trait values for all individuals observed. 
+A dataset that more closely resembles that used in RLQ analysis could be generated by using only a sample of the **individualsXtraits.csv** dataset.
