@@ -227,6 +227,31 @@ ggpairs(select(cwm_traits, -plot))
 ```
 
 
+In the above, I calculated CWM trait values using the standard approach, where we assume that we have only one trait value for each species.
+What do we get if we calculate an actual CWM using the full dataset?
+
+```{r}
+cwm_traits_direct <-
+  indXtraits %>%
+  group_by(plot) %>%
+  summarise( lma = mean(lma),
+             c_to_n = mean(c_to_n),
+             succulence = mean(succulence))
+```
+
+Plot the traits from the indirect versus direct CWM measures
+
+```{r}
+plot(cwm_traits_direct$lma, cwm_traits$lma)
+plot(cwm_traits_direct$c_to_n, cwm_traits$c_to_n)
+plot(cwm_traits_direct$succulence, cwm_traits$succulence)
+```
+
+Plot the CWM-direct trait-trait interactions
+
+```{r}
+ggpairs(cwm_traits_direct[-1])
+```
 
 
 
