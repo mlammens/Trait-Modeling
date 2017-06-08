@@ -10,7 +10,7 @@ Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by press
 
 In this document, we show several trait modeling analyses using data collected in the Baviaanksloof region of the Cape Floristic Region in South Africa.
 
-```{r}
+```{r, message=FALSE}
 library(ggplot2)
 library(plyr)
 library(dplyr)
@@ -80,7 +80,7 @@ obs_ids <- c("uid", "species", "latitude", "longitude", "region")
 lab_traits <- c("lma", "lwr", "leaf_thickness_mm", "max_leaf_width_cm",
                 "fwc", "twig_fwc")
 
-field_traits <- c("height_cm", "canopy_area_cm2", "branch_order")
+field_traits <- c("height_cm", "canopy_area_cm2")
 ```
 
 
@@ -101,12 +101,6 @@ bk_traits_field_sub <-
 bk_traits_field_complete <- 
   bk_traits_field_sub[complete.cases(bk_traits_field_sub[field_traits]), ]
 
-```
-
-Note and treat *branch order* as an ordinal measurement.
-
-```{r}
-bk_traits_field_complete$branch_order <-ordered(bk_traits_field_complete$branch_order)
 ```
 
 
@@ -137,6 +131,7 @@ After log~10~ transformaion, plot trait-trait relationships.
 
 ```{r}
 ggpairs(bk_traits_lab_complete_log10[lab_traits])
+# figon ggsave("../manuscript/figures/cfr_lab_traits.eps", device = "eps")
 ```
 
 ### Field traits
@@ -225,14 +220,11 @@ Note that in this case, I am treating branch order *not* as an ordered variable,
 Unfortunately, this conversion yields a bimodal distribution, since most plants were observed with a branch order of either 0, 1, or 4.
 
 ```{r}
-bk_traits_field_complete_log10$branch_order_num <- as.numeric(levels(bk_traits_field_complete_log10$branch_order))[bk_traits_field_complete_log10$branch_order]
-
 bk_traits_field_species <-
   bk_traits_field_complete_log10 %>%
   group_by(species) %>%
   dplyr::summarise(height_cm = mean(height_cm),
-                   canopy_area_cm2 = mean(canopy_area_cm2),
-                   branch_order = mean(branch_order_num))
+                   canopy_area_cm2 = mean(canopy_area_cm2))
 
 ggpairs(select(bk_traits_field_species, -species))
 ```
@@ -300,7 +292,7 @@ The environmental variables used included minimum temperature in July (MTmin.07)
 ```{r}
 plot_ids <- c("plot_smpl", "latitutde", "longitude", "region")
 fieldsite_ids <- c("latitude", "longitude", "region")
-env_vars <- c("MTmin.07", "MTmax.01", "northerness", "easterness", "solar_rad", "altitude")
+env_vars <- c("MTmin.07", "MTmax.01", "solar_rad", "altitude")
 ```
 
 #### Create complete cases data sets
@@ -364,7 +356,7 @@ bk_traits_lab_env <-
 
 ```{r}
 bk_traits_field_env_m <-
-  melt(bk_traits_field_env, measure.vars = c("height_cm", "canopy_area_cm2", "branch_order_num"), variable.name = "Trait", value.name = "Trait.Val")
+  melt(bk_traits_field_env, measure.vars = c("height_cm", "canopy_area_cm2"), variable.name = "Trait", value.name = "Trait.Val")
 bk_traits_field_env_m <-
   melt(bk_traits_field_env_m, measure.vars = env_vars, variable.name = "Env", value.name = "Env.Val")
 ```
@@ -432,9 +424,7 @@ bk_traits_lab_species_fieldsite <-
             MTmax.01 = unique(MTmax.01),
             MTmin.07 = unique(MTmin.07),
             altitude = unique(altitude),
-            solar_rad = unique(solar_rad),
-            northerness = unique(northerness),
-            easterness = unique(easterness))
+            solar_rad = unique(solar_rad))
 ```
 
 Melt dataset
