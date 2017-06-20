@@ -5,10 +5,9 @@ output:
     toc: yes
 ---
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
-
 
 In this document, we show several trait modeling analyses using data collected in the Baviaanksloof region of the Cape Floristic Region in South Africa.
+This work accompanies a chapter for the Ecological Statistics Handboodk.
 
 ```{r, message=FALSE}
 library(ggplot2)
@@ -23,7 +22,7 @@ library(FD)
 
 Read in the trait data sets.
 First need to read in full CFR dataset, then filter to B'kloof data.
-Following the notation of Dray and colleagues (REFS), these two datasets are used to construct the **Q** matrix.
+Following the notation of Dray and colleagues (REFS), the dataset is used to construct the **Q** matrix.
 The **Q** matrix is the $p \times s$ table describing $s$ traits for $p$ species. 
 By convention, each species is assigned a single value for each trait, usually an average if the trait is measured on a continuous scale.
 In our datasets, we have multiple measurements per species, so we must *reduce* our data, resulting in a loss of some of our collected information.
@@ -31,41 +30,23 @@ Essentially, this process ignores *intra-specific* variation.
 It remains unclear what role *intra-specific* variation plays in determining the patterns of trait by environment relationships in real communities.
 
 ```{r}
-cfr_traits_lab <- read.csv("/Users/mlammens/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/individualsXtraits_lab.csv")
-cfr_traits_field <- read.csv("/Users/mlammens/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/individualsXtraits_field.csv")
+cfr_traits_lab <- read.csv("~/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/individualsXtraits_lab.csv")
 
 bk_traits_lab <- filter(cfr_traits_lab, region == "baviaanskloof")
-bk_traits_field <- filter(cfr_traits_field, region == "baviaanskloof")
 ```
 
 ## Summary information and statistics of trait data
 
-Number of species - lab
+Number of species
 
 ```{r}
 length(unique(bk_traits_lab$species))
 ```
 
-Number of species - field
-
-```{r}
-length(unique(bk_traits_field$species))
-```
-
-These are equal, which is a good check.
 
 ### Select a set of traits to investigate
 
-For the examples in this chapter, we will use the same set of traits used in Aiello-Lammens et al. 2016.
-
-#### Field measurements
-
-* Plant height
-* Canopy area
-* Branch order
-* Resprout post-fire
-
-#### Lab measurements
+For the examples in this chapter, we will use a subset of the traits used in Aiello-Lammens et al. 2016.
 
 * Leaf-mass area (LMA)
 * Leaf length-width ratio (LWR)
@@ -80,7 +61,6 @@ obs_ids <- c("uid", "species", "latitude", "longitude", "region")
 lab_traits <- c("lma", "lwr", "leaf_thickness_mm", "max_leaf_width_cm",
                 "fwc", "twig_fwc")
 
-field_traits <- c("height_cm", "canopy_area_cm2")
 ```
 
 
@@ -93,14 +73,6 @@ bk_traits_lab_sub <-
 
 bk_traits_lab_complete <- 
   bk_traits_lab_sub[complete.cases(bk_traits_lab_sub[lab_traits]), ]
-
-bk_traits_field_sub <- 
-  bk_traits_field %>%
-  select(which(names(bk_traits_field) %in% c(obs_ids, field_traits)))
-
-bk_traits_field_complete <- 
-  bk_traits_field_sub[complete.cases(bk_traits_field_sub[field_traits]), ]
-
 ```
 
 
@@ -113,7 +85,6 @@ Each data point represents measurements taken from samples collected from indivi
 
 Using the `GGally::ggpairs` function.
 
-### Lab traits
 
 ```{r}
 ggpairs(bk_traits_lab_complete[lab_traits])
@@ -134,33 +105,8 @@ ggpairs(bk_traits_lab_complete_log10[lab_traits])
 # figon ggsave("../manuscript/figures/cfr_lab_traits.eps", device = "eps")
 ```
 
-### Field traits
-
-Look at trait-trait relationships for field traits.
-The field traits differ from the lab traits in that field traits were measured only on one "representative" individual for each species observed at a data collection site.
-
-
-```{r}
-ggpairs(bk_traits_field_complete[field_traits])
-```
-
-As with the lab data, here we should trasform the measurements of `height_cm` and `canopy_area_cm2`.
-
-```{r}
-bk_traits_field_complete_log10 <- bk_traits_field_complete
-bk_traits_field_complete_log10[c("height_cm", "canopy_area_cm2")] <- log10(bk_traits_field_complete[c("height_cm", "canopy_area_cm2")])
-```
-
-Replot.
-
-```{r}
-ggpairs(bk_traits_field_complete_log10[field_traits])
-```
-
 
 # PCA of individual-level traits
-
-## Lab traits
 
 In order to reduce dimensionality of the lab trait data set, we can apply principal component analysis. 
 
@@ -185,9 +131,6 @@ biplot(bk_traits_lab_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling =
 biplot(bk_traits_lab_pca, scaling = 1, main = "PCA - scaling = 1", type = c("text", "points"))
 ```
 
-## Field traits
-
-Given the already small number of traits collected in the field, and the fact that only two of the three are continuous, dimension reduction is unnecessary.
 
 # Species-level trait values
 
@@ -214,33 +157,6 @@ bk_traits_lab_species <-
 ggpairs(select(bk_traits_lab_species, -species))
 ```
 
-## Species-level field traits
-
-Note that in this case, I am treating branch order *not* as an ordered variable, but as a numeric value. This results in a continuous **branch order** value, which while not logical for a specific plant, does make sense when considering the *average* branch order value for a species (or a plot, as used in CWM).
-Unfortunately, this conversion yields a bimodal distribution, since most plants were observed with a branch order of either 0, 1, or 4.
-
-```{r}
-bk_traits_field_species <-
-  bk_traits_field_complete_log10 %>%
-  group_by(species) %>%
-  dplyr::summarise(height_cm = mean(height_cm),
-                   canopy_area_cm2 = mean(canopy_area_cm2))
-
-ggpairs(select(bk_traits_field_species, -species))
-```
-
-## Combine lab and field trait data
-
-Now we can combine these two datasets.
-
-```{r}
-bk_traits_species <- 
-  dplyr::inner_join(bk_traits_field_species, bk_traits_lab_species, by = "species")
-
-summary(bk_traits_species)
-```
-
-Only considering those species for which we have **complete** data, our combined trait data set contains **nine trait measurements** for `r nrow(bk_traits_species)` species.
 
 # PCA of species-level trait data
 
@@ -248,7 +164,7 @@ We can now perform a PCA of the species-level trait data.
 Note that since we have calculated species-level trait mean values, we are no longer confounding intra- and inter-specific trait variation in this anlaysis.
 
 ```{r}
-bk_traits_species_pca <- rda(bk_traits_species[c(field_traits,lab_traits)], scale = TRUE)
+bk_traits_species_pca <- rda(bk_traits_lab_species[lab_traits], scale = TRUE)
 ```
 
 Plot biplot and examine summary.
@@ -278,8 +194,8 @@ This matrix is an $n \times m$ table of measurements of $m$ environmental variab
 
 
 ```{r}
-cfr_env_plots <- read.csv("/Users/mlammens/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/plotXenv.csv")
-cfr_env_fieldsites <- read.csv("/Users/mlammens/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/field_collXenv.csv")
+cfr_env_plots <- read.csv("~/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/plotXenv.csv")
+cfr_env_fieldsites <- read.csv("~/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/field_collXenv.csv")
 bk_env_plots <- filter(cfr_env_plots, region == "baviaanskloof")
 bk_env_fieldsites <- filter(cfr_env_fieldsites, region == "baviaanskloof")
 ```
@@ -326,9 +242,8 @@ ggpairs(bk_env_plots_complete[env_vars])
 
 ##### Environmental variables at Field Sites
 
-Note that there is a 'circular' relationship between easterness and northerness.
-This is because they are derived from the same environmental value (aspect). 
-We also must note that there are strong correlations between MTmin.07 and MTmax.01, and between both of these variables and Elevation.
+
+Note that there are strong correlations between MTmin.07 and MTmax.01, and between both of these variables and Elevation.
 This is to be expected, and basically shows that as elevation goes up, temperature goes down, and locations with warmer (colder) winters have warmer (colder) summers.
 
 ```{r}
@@ -344,33 +259,11 @@ That is, this kind of analysis is best done for individuals.
 ### Make combined trait and field site environment datasets
 
 ```{r}
-bk_traits_field_env <- 
-  inner_join(bk_traits_field_complete_log10, bk_env_fieldsites_complete)
 bk_traits_lab_env <-
   inner_join(bk_traits_lab_complete_log10, bk_env_fieldsites_complete)
 ```
 
 ### Make simple plots of trait x environment relationships
-
-#### Field traits
-
-```{r}
-bk_traits_field_env_m <-
-  melt(bk_traits_field_env, measure.vars = c("height_cm", "canopy_area_cm2"), variable.name = "Trait", value.name = "Trait.Val")
-bk_traits_field_env_m <-
-  melt(bk_traits_field_env_m, measure.vars = env_vars, variable.name = "Env", value.name = "Env.Val")
-```
-
-Make plot
-
-```{r}
-ggplot(bk_traits_field_env_m, aes(x = Env.Val, y = Trait.Val)) +
-  geom_point() +
-  geom_smooth() +
-  facet_grid(Trait ~ Env, scales = "free")
-```
-
-#### Lab traits
 
 ```{r}
 bk_traits_lab_env_m <-
@@ -456,7 +349,7 @@ In this case, we will only use the "A" plots.
 
 ```{r}
 plotXspecies_cover <-
-  read.csv("/Users/mlammens/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/plotXspecies_cover.csv")
+  read.csv("~/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/plotXspecies_cover.csv")
 bk_plotXspecies_cover <- filter(plotXspecies_cover, region == "baviaanskloof", historic == 0)
 bk_plotXspecies_cover <- bk_plotXspecies_cover[ which(grepl(pattern = "a", x = bk_plotXspecies_cover$plot)), ]
 bk_plotXspecies_cover <- 
@@ -485,11 +378,11 @@ pXs <- dplyr::select( pXs, -plot_smpl )
 ### Determine which species are in both the trait and plot datasets
 
 ```{r}
-spec_both <- intersect( bk_traits_species$species, names(pXs) )
+spec_both <- intersect( bk_traits_lab_species$species, names(pXs) )
 
 ## Extract only those species with traits from both the pXs and tXs data.frames
 pXs_forCWM <- pXs[ spec_both ]
-tXs_forCWM <- filter(bk_traits_species, species %in% spec_both )
+tXs_forCWM <- filter(bk_traits_lab_species, species %in% spec_both )
 
 # ## Remove plots that are "empty" after removing species w/o traits
 # pXs_forCWM <- pXs_forCWM[ -which( apply( pXs_forCWM, MARGIN = 1, FUN = sum ) == 0 ), ]
@@ -537,7 +430,7 @@ bk_cwm_traits <- bk_cwm_traits[ complete.cases(bk_cwm_traits), ]
 
 ```{r}
 ## Calculate PCA of CWM values
-bk_cwm_traits_pca <- rda( bk_cwm_traits[ c(lab_traits, field_traits) ], scale = TRUE )
+bk_cwm_traits_pca <- rda( bk_cwm_traits[lab_traits], scale = TRUE )
 bk_cwm_traits_pca$CA$eig / sum( bk_cwm_traits_pca$CA$eig )
 cumsum( bk_cwm_traits_pca$CA$eig / sum( bk_cwm_traits_pca$CA$eig ) )
 
@@ -545,7 +438,7 @@ cumsum( bk_cwm_traits_pca$CA$eig / sum( bk_cwm_traits_pca$CA$eig ) )
 ## -------------------------------------------------------------------------- ##
 
 ## Extract the PCA scores
-bk_cwm_traits_pca_scores <- scores(bk_cwm_traits_pca, choices = 1:length(c(lab_traits, field_traits)))$sites
+bk_cwm_traits_pca_scores <- scores(bk_cwm_traits_pca, choices = 1:length(lab_traits))$sites
 
 ## Convert to data.frame
 bk_cwm_traits_pca_scores <- as.data.frame( bk_cwm_traits_pca_scores )
@@ -556,7 +449,7 @@ bk_cwm_traits <- cbind( bk_cwm_traits, bk_cwm_traits_pca_scores )
 
 ## Extract loadings
 bk_cwm_traits_pca_loadings <- 
-  scores(bk_cwm_traits_pca, choices = 1:length(c(lab_traits, field_traits)))$species 
+  scores(bk_cwm_traits_pca, choices = 1:length(lab_traits))$species 
 
 ## Convert to data.frame
 bk_cwm_traits_pca_loadings <- as.data.frame( bk_cwm_traits_pca_loadings )
