@@ -562,4 +562,30 @@ plot(bk_rlq)
 ```
 
 
+# Fourth-Corner
+
+```{r}
+
+r_mat <- bk_cwm_traits_env[env_vars]
+row.names(r_mat) <- bk_cwm_traits$plot
+
+l_mat <- pXs_forCWM
+names(l_mat) <- sub(" ", ".", names(l_mat))
+
+q_mat <- tXs_forCWM
+q_mat <- as.data.frame(q_mat)
+row.names(q_mat) <- names(l_mat)
+
+nrepet <- 999 
+bk_fourthcorner <- fourthcorner(r_mat, 
+                                l_mat, 
+                                q_mat, 
+                                modeltype = 6,
+                                p.adjust.method.G = "none", 
+                                p.adjust.method.D = "none", 
+                                nrepet = nrepet)
+
+plot(bk_fourthcorner, alpha = 0.05)
+
+```
 
