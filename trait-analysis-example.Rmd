@@ -1,7 +1,9 @@
 ---
 title: "Trait Analysis Example"
-output: 
-  html_notebook: 
+output:
+  html_document:
+    toc: yes
+  html_notebook:
     toc: yes
 ---
 
@@ -229,6 +231,14 @@ bk_env_fieldsites_complete <-
 ```
 
 
+#### Standardize (Center and Scale) the environmental variables
+
+```{r}
+bk_env_plots_complete[env_vars] <- scale(bk_env_plots_complete[env_vars])
+bk_env_fieldsites_complete[env_vars] <- scale(bk_env_fieldsites_complete[env_vars])
+```
+
+
 #### EDA of environmental data
 
 Use `ggpairs` to examine distributional patterns of environmental variables and correlation among variables.
@@ -395,9 +405,6 @@ tXs_forCWM$species <- NULL
 
 
 
-# RDA of traits and environment
-
-
 # CWM of traits
 
 Use the `FD` package to calculate Community Weighted Mean trait values.
@@ -421,6 +428,10 @@ bk_cwm_traits$plot <- row.names( bk_cwm_traits )
 
 ## Use only complete cases
 bk_cwm_traits <- bk_cwm_traits[ complete.cases(bk_cwm_traits), ]
+
+## Add the environmental conditions to these values
+bk_cwm_traits_env <-
+  inner_join(bk_cwm_traits, bk_env_plots_complete, by = c("plot" = "plot_smpl"))
 
 ```
 
@@ -482,14 +493,72 @@ ggplot() +
 ```
 
 
+# RDA of traits and environment
+
+Redundancy analysis (RDA) is a form of contrained ordination. 
+Here we apply RDA to the Baviaanskloof dataset, prepared in two ways.
+The first is considering the measurements taken on each individual plant, at the location where it was sampled.
+The second is considering the community weighted means of the releve plots, applying species-level mean trait values.
+
+## Individual-level RDA
+
+
+```{r}
+bk_traits_ind_rda <- 
+  rda(formula = bk_traits_lab_env[lab_traits] ~ MTmax.01 + MTmin.07 + altitude + solar_rad, data = bk_traits_lab_env)
+```
+
+```{r}
+summary(bk_traits_ind_rda)
+```
+
+```{r}
+plot( bk_traits_ind_rda, type='none', scaling = 1 )
+points( bk_traits_ind_rda, pch=20, cex=0.8, scaling = 1 )
+text(bk_traits_ind_rda,display='species',col='red',axis.bp=TRUE, scaling = 1)
+text(bk_traits_ind_rda,display='bp', scaling = 1)
+```
+
+
+## CWM RDA
+
+This appraoch is equivelant to the first methods proposed by Kleyer et al. 2012
+
+```{r}
+bk_cwm_traits_rda <- 
+  rda(formula = bk_cwm_traits_env[lab_traits] ~ MTmax.01 + MTmin.07 + altitude + solar_rad, data = bk_cwm_traits_env)
+print(bk_cwm_traits_rda)
+```
+
+
+```{r}
+plot( bk_cwm_traits_rda, type='none', scaling = 1 )
+points( bk_cwm_traits_rda, pch=20, cex=0.8, scaling = 1 )
+text(bk_cwm_traits_rda,display='species',col='red',axis.bp=TRUE, scaling = 1)
+text(bk_cwm_traits_rda,display='bp', scaling = 1)
+```
+
+# Randomization approaches to test if CWMs show signes of environmental filtering
+
 
 
 # RLQ for traits, abundance, and environment
 
 
 ```{r}
-names(cfr_traits_field)
-summary(cfr_traits_lab)
+## Correspondence analysis of the L matrix/table 
+l_coa <- dudi.coa(pXs_forCWM, scannf = FALSE)
+
+## PCA of the R and Q data tables
+r_pca <- dudi.pca(bk_cwm_traits_env[env_vars], row.w = l_coa$lw, scannf = FALSE)
+q_pca <- dudi.pca(tXs_forCWM, row.w = l_coa$cw, scannf = FALSE)
+
+## Run RLQ function
+bk_rlq <- rlq(r_pca, l_coa, q_pca, scannf = FALSE)
+
+
+## Plot the result
+plot(bk_rlq)
 ```
 
 
