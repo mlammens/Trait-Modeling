@@ -20,6 +20,9 @@ library(ade4)
 library(vegan)
 library(reshape2)
 library(FD)
+library(picante)
+
+knitr::opts_chunk$set(fig.width=6, fig.height=6) 
 ```
 
 Read in the trait data sets.
@@ -520,7 +523,39 @@ text(bk_traits_ind_rda,display='bp', scaling = 1)
 ```
 
 
-## CWM RDA
+Get coefficients for RDA
+
+```{r}
+coef(bk_traits_ind_rda)
+```
+
+
+Get R^2 for RDA
+
+```{r}
+(R2adj <- RsquareAdj(bk_traits_ind_rda))
+```
+
+Note that the R-squared value for these traits based on these environmental variables is less than 5%.
+
+
+## Make R, L, and Q matrices
+
+```{r}
+r_mat <- bk_cwm_traits_env[env_vars]
+row.names(r_mat) <- bk_cwm_traits$plot
+
+l_mat <- pXs_forCWM
+names(l_mat) <- sub(" ", ".", names(l_mat))
+
+q_mat <- tXs_forCWM
+q_mat <- as.data.frame(q_mat)
+row.names(q_mat) <- names(l_mat)
+
+```
+
+
+# CWM-RDA
 
 This appraoch is equivelant to the first methods proposed by Kleyer et al. 2012
 
@@ -529,6 +564,19 @@ bk_cwm_traits_rda <-
   rda(formula = bk_cwm_traits_env[lab_traits] ~ MTmax.01 + MTmin.07 + altitude + solar_rad, data = bk_cwm_traits_env)
 print(bk_cwm_traits_rda)
 ```
+
+
+Get coefficients and R-squared values
+
+```{r}
+coef(bk_cwm_traits_rda)
+```
+
+```{r}
+RsquareAdj(bk_cwm_traits_rda)
+```
+
+Interestingly, not much more than we got with individuals.
 
 
 ```{r}
@@ -540,12 +588,106 @@ text(bk_cwm_traits_rda,display='bp', scaling = 1)
 
 # Randomization approaches to test if CWMs show signes of environmental filtering
 
+In this example, we will use 'indpendent swap' ranomizaiton.
 
+The work flow here is to apply the randomization/ permutation on the L matrix.
+Then recalculate CWMs.
+Store the CWM values for comparison to the original values later.
+
+```{r, message=FALSE, eval = FALSE}
+## Choose number of iterations
+iter_n <- 999
+cwm_rand_all <- vector()
+
+for (iter in 1:iter_n){
+  ## Shuffle the L matrix
+  l_rand <- randomizeMatrix(l_mat, null.model = "independentswap")
+  
+  ## Calculate CWM values
+  cwm_rand <- dbFD( x = q_mat, 
+                    a = l_rand,
+                    w.abun = TRUE, 
+                    calc.FDiv = FALSE, 
+                    calc.CWM = TRUE,
+                    corr = "cailliez" )
+  cwm_rand <- cwm_rand$CWM
+  
+  ## Add a column for the iteration number
+  cwm_rand$iter <- iter
+  cwm_rand$plot <- row.names(cwm_rand)
+  
+  ## Add this iteration to the full dataset
+  cwm_rand_all <- rbind(cwm_rand_all, cwm_rand)
+}
+
+save(cwm_rand_all, file = "cwm_rand_all.RData")
+
+```
+
+
+After generating random CWM sets, aggregate the data.
+
+```{r}
+## Load in the saved randomization results
+load("cwm_rand_all.RData")
+
+## Calculate the mean values
+cwm_rand_mean <- cwm_rand_all %>%
+  group_by(plot) %>%
+  summarise(max_leaf_width_cm = mean(max_leaf_width_cm),
+            leaf_thickness_mm = mean(leaf_thickness_mm),
+            lma = mean(lma),
+            fwc = mean(fwc),
+            lwr = mean(lwr),
+            twig_fwc = mean(twig_fwc))
+  
+## Calculate the SD values
+cwm_rand_sd <- cwm_rand_all %>%
+  group_by(plot) %>%
+  summarise(max_leaf_width_cm = sd(max_leaf_width_cm),
+            leaf_thickness_mm = sd(leaf_thickness_mm),
+            lma = sd(lma),
+            fwc = sd(fwc),
+            lwr = sd(lwr),
+            twig_fwc = sd(twig_fwc))
+
+
+```
+
+Get the observed values and calculate SES
+
+```{r}
+cwm_obs <- select(bk_cwm_traits, max_leaf_width_cm:twig_fwc)
+
+## Check that they are in the same order
+if( !all(row.names(cwm_obs)==cwm_rand_mean$plot) ){
+  print("WARNING - CWM_OBS ROWS DO NOT MATCH CWM_MEAN ROWS")
+}
+
+## Calculate SES values
+cwm_ses <- (cwm_obs - select(cwm_rand_mean, -plot)) / select(cwm_rand_sd, -plot)
+
+## Make a logical matrix
+cwm_ses_sig <- abs(cwm_ses) >= 1.96
+colSums(cwm_ses_sig)
+
+```
+
+Based on these results, and the very small number of plots whose CWM values that are significant when considering the null distribution, it seems that there is little evidence for environmental filtering here.
+
+```{r}
+apply(cwm_ses, MARGIN = 2, mean)
+
+apply(cwm_ses, MARGIN = 2, t.test)
+
+```
+
+Grouping all values together, there's some indication that FWC is gnerally less random than expected by the null model, so perhaps there is some environmental filtering for this trait going on.
 
 # RLQ for traits, abundance, and environment
 
 
-```{r}
+```{r, eval = FALSE}
 ## Correspondence analysis of the L matrix/table 
 l_coa <- dudi.coa(pXs_forCWM, scannf = FALSE)
 
@@ -561,21 +703,26 @@ bk_rlq <- rlq(r_pca, l_coa, q_pca, scannf = FALSE)
 plot(bk_rlq)
 ```
 
+```{r}
+## Correspondence analysis of the L matrix/table 
+l_coa <- dudi.coa(l_mat, scannf = FALSE)
+
+## PCA of the R and Q data tables
+r_pca <- dudi.pca(r_mat, row.w = l_coa$lw, scannf = FALSE)
+q_pca <- dudi.pca(q_mat, row.w = l_coa$cw, scannf = FALSE)
+
+## Run RLQ function
+bk_rlq <- rlq(r_pca, l_coa, q_pca, scannf = FALSE)
+
+
+## Plot the result
+plot(bk_rlq)
+```
+
 
 # Fourth-Corner
 
 ```{r}
-
-r_mat <- bk_cwm_traits_env[env_vars]
-row.names(r_mat) <- bk_cwm_traits$plot
-
-l_mat <- pXs_forCWM
-names(l_mat) <- sub(" ", ".", names(l_mat))
-
-q_mat <- tXs_forCWM
-q_mat <- as.data.frame(q_mat)
-row.names(q_mat) <- names(l_mat)
-
 nrepet <- 999 
 bk_fourthcorner <- fourthcorner(r_mat, 
                                 l_mat, 
@@ -586,6 +733,22 @@ bk_fourthcorner <- fourthcorner(r_mat,
                                 nrepet = nrepet)
 
 plot(bk_fourthcorner, alpha = 0.05)
+
+```
+
+Here's the fourth-corner analysis treating the L matrix as presence/absence, rather than relative percent cover.
+
+```{r}
+bk_fourthcorner_pa <- fourthcorner(r_mat, 
+                                   l_mat, 
+                                   q_mat, 
+                                   tr01 = TRUE,
+                                   modeltype = 6,
+                                   p.adjust.method.G = "none", 
+                                   p.adjust.method.D = "none", 
+                                   nrepet = nrepet)
+
+plot(bk_fourthcorner_pa, alpha = 0.05)
 
 ```
 
