@@ -1,7 +1,9 @@
 ---
 title: "Trait Analysis Simulation Example"
-output: 
-  html_notebook: 
+output:
+  html_document:
+    toc: yes
+  html_notebook:
     toc: yes
 ---
 
@@ -19,6 +21,9 @@ library(ade4)
 library(vegan)
 library(reshape2)
 library(FD)
+library(picante)
+
+knitr::opts_chunk$set(fig.width=6, fig.height=6) 
 ```
 
 Read in the simulated trait data sets.
@@ -98,12 +103,6 @@ ggpairs(select(q_sim, -spec))
 ```
 
 
-### PCA of species-level trait data
-
-We can now perform a PCA of the species-level trait data.
-Note that since we have calculated species-level trait mean values, we are no longer confounding intra- and inter-specific trait variation in this anlaysis.
-We're not going to actually do these calculations for the simulated data since the dimenions are already very low (trait space = 3d, env space = 2d).
-
 
 # Read in environmental data
 
@@ -146,13 +145,21 @@ traitsXspeciesXenv_m <- melt(traitsXspeciesXenv_m,
                              variable.name = "trait_var", value.name = "trait_val")
 
 ## Make plots
-ggplot(data = traitsXspeciesXenv_m, aes(x = ev_val, y = trait_val, colour = spec)) +
+ggplot(data = traitsXspeciesXenv_m, aes(x = ev_val, y = trait_val, linetype = spec)) +
   geom_point() +
   facet_grid(trait_var ~ ev_var, scales = "free") +
   geom_smooth() +
   theme_bw()
 ```
 
+```{r}
+ggplot(data = traitsXspeciesXenv_m, aes(x = ev_val, y = trait_val)) +
+  geom_point() +
+  facet_grid(trait_var ~ ev_var, scales = "free") +
+  geom_smooth() +
+  theme_bw()
+
+```
 
 
 ### Linear regression models
@@ -186,12 +193,38 @@ The **L** matrix is a $n \times p$ table of abundances (or occurrences) of $p$ s
 l_sim <- read.csv("plotXspec_abund_sim.csv")
 ```
 
+# RDA of traits by environment
+
+## Individual-level RDA
+
+```{r}
+indXtraits_rda <-
+  rda(formula = traitsXspeciesXenv[c("lma", "c_to_n", "succulence")] ~ ev1 + ev2, data = traitsXspeciesXenv) 
+```
+
+```{r}
+summary(indXtraits_rda)
+```
+
+```{r}
+plot( indXtraits_rda, type='none', scaling = 2 )
+points( indXtraits_rda, pch=20, cex=0.8, scaling = 2 )
+text(indXtraits_rda,display='species',col='red',axis.bp=TRUE, scaling = 2)
+text(indXtraits_rda,display='bp', scaling = 2)
+```
+
+Get coefficients, adjusted r^2, and perform permutation tests for this RDA
+
+```{r}
+coef(indXtraits_rda)
+
+RsquareAdj(indXtraits_rda)
+
+anova(indXtraits_rda)
+```
 
 
-## RDA of CWM traits with environment
-
-
-### CWM of traits
+# CWM of traits
 
 Use the `FD` package to calculate Community Weighted Mean trait values.
 
@@ -242,9 +275,22 @@ cwm_traits_direct <-
 Plot the traits from the indirect versus direct CWM measures
 
 ```{r}
-plot(cwm_traits_direct$lma, cwm_traits$lma)
-plot(cwm_traits_direct$c_to_n, cwm_traits$c_to_n)
-plot(cwm_traits_direct$succulence, cwm_traits$succulence)
+## Convert trait datasets into long format
+cwm_traits_long <- tidyr::gather(cwm_traits, "trait", "t_val", 1:3)
+cwm_traits_direct_long <- tidyr::gather(cwm_traits_direct, "trait", "t_val_direct", 2:4)
+
+## Join two trait data sets by plot and trait
+cwm_traits_comb <- inner_join(cwm_traits_long, cwm_traits_direct_long, by = c("plot", "trait"))
+
+## Plot
+ggplot(data = cwm_traits_comb, aes(x=t_val_direct, y = t_val)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  facet_wrap(~trait, scales = "free") +
+  xlab("Plot-specific CWM trait value") +
+  ylab("Species-level CWM trait value") +
+  theme_bw()
+
 ```
 
 Plot the CWM-direct trait-trait interactions
@@ -254,11 +300,222 @@ ggpairs(cwm_traits_direct[-1])
 ```
 
 
+# RDA of CWM traits with environment
+
+Let's ignore the differences associated with how CWMs are calculate that are show above, and go ahead and perform RDA on the CWMs calculated using the R matrix.
+This is congrous with the B'kloof example.
+
+Add the plot environmental values to the CWM matrix
+
+```{r}
+cwm_traits_env <- inner_join(cwm_traits, r_sim, by = "plot")
+```
+
+Setup RDA
+
+```{r}
+cwm_traits_rda <-
+  rda(formula = cwm_traits_env[c("lma", "c_to_n", "succulence")] ~ ev1 + ev2, data = cwm_traits_env) 
+```
+
+Look at summaries and plots
+
+```{r}
+summary(cwm_traits_rda)
+```
+
+
+```{r}
+plot( cwm_traits_rda, type='none', scaling = 2 )
+points( cwm_traits_rda, pch=20, cex=0.8, scaling = 2 )
+text(cwm_traits_rda,display='species',col='red',axis.bp=TRUE, scaling = 2)
+text(cwm_traits_rda,display='bp', scaling = 2)
+
+```
+
+Get coefficients, R^2, and run permutation tests of signficance
+
+```{r}
+RsquareAdj(cwm_traits_rda)
+
+coef(cwm_traits_rda)
+
+anova(cwm_traits_rda)
+```
+
+
+
+# Modify R, L, and Q matrices
+
+```{r}
+r_sim_mat <- r_sim[c("ev1", "ev2")]
+row.names(r_sim_mat) <- r_sim$plot
+
+l_sim_mat <- select(l_sim, -plot)
+row.names(l_sim_mat) <- l_sim$plot
+l_sim_mat <- l_sim_mat[sort(names(l_sim_mat))]
+
+q_sim_mat <- select(q_sim, -spec)
+q_sim_mat <- as.data.frame(q_sim_mat)
+row.names(q_sim_mat) <- q_sim$spec
+
+```
+
+
+# Randomization approaches to test if CWMs show signes of environmental filtering
+
+In this example, we will use 'indpendent swap' ranomizaiton.
+
+The work flow here is to apply the randomization/ permutation on the L matrix.
+Then recalculate CWMs.
+Store the CWM values for comparison to the original values later.
+
+```{r, message=FALSE, eval = FALSE}
+## Choose number of iterations
+iter_n <- 999
+cwm_rand_all <- vector()
+
+for (iter in 1:iter_n){
+  ## Shuffle the L matrix
+  l_rand <- randomizeMatrix(l_sim_mat, null.model = "richness")
+  
+  ## Calculate CWM values
+  cwm_rand <- dbFD( x = q_sim_mat, 
+                    a = l_rand,
+                    w.abun = TRUE, 
+                    calc.FDiv = FALSE, 
+                    calc.CWM = TRUE,
+                    corr = "cailliez" )
+  cwm_rand <- cwm_rand$CWM
+  
+  ## Add a column for the iteration number
+  cwm_rand$iter <- iter
+  cwm_rand$plot <- row.names(cwm_rand)
+  
+  ## Add this iteration to the full dataset
+  cwm_rand_all <- rbind(cwm_rand_all, cwm_rand)
+}
+
+save(cwm_rand_all, file = "cwm_sim_rand_all.RData")
+
+```
+
+
+After generating random CWM sets, aggregate the data.
+
+```{r}
+## Load in the saved randomization results
+load("cwm_sim_rand_all.RData")
+
+## Calculate the mean values
+cwm_rand_mean <- cwm_rand_all %>%
+  group_by(plot) %>%
+  summarise(lma = mean(lma),
+            c_to_n = mean(c_to_n),
+            succulence = mean(succulence))
+  
+## Calculate the SD values
+cwm_rand_sd <- cwm_rand_all %>%
+  group_by(plot) %>%
+  summarise(lma = sd(lma),
+            c_to_n = sd(c_to_n),
+            succulence = sd(succulence))
+
+
+```
+
+Get the observed values and calculate SES
+
+```{r}
+cwm_obs <- cwm_traits
+cwm_obs <- cwm_obs[order(cwm_obs$plot),]
+row.names(cwm_obs) <- cwm_obs$plot
+cwm_obs <- select(cwm_obs, lma:succulence)
+
+## Check that they are in the same order
+if( !all(row.names(cwm_obs)==cwm_rand_mean$plot) ){
+  print("WARNING - CWM_OBS ROWS DO NOT MATCH CWM_MEAN ROWS")
+}
+
+## Calculate SES values
+cwm_ses <- (cwm_obs - select(cwm_rand_mean, -plot)) / select(cwm_rand_sd, -plot)
+
+## Make a logical matrix
+cwm_ses_sig <- abs(cwm_ses) >= 1.96
+colSums(cwm_ses_sig)
+
+```
+
+Based on these results, and the very small number of plots whose CWM values that are significant when considering the null distribution, it seems that there is little evidence for environmental filtering here.
+
+```{r}
+apply(cwm_ses, MARGIN = 2, mean)
+apply(cwm_ses, MARGIN = 2, t.test)
+
+```
+
+Grouping all values together, there's some indication that FWC is gnerally less random than expected by the null model, so perhaps there is some environmental filtering for this trait going on.
+
+Plot the distributions of the SES values for each trait
+
+```{r}
+cwm_ses_temp <- cwm_ses
+cwm_ses_temp$plot <- row.names(cwm_ses)
+cwm_ses_temp_long <- tidyr::gather(cwm_ses_temp, "trait", "value", 1:3)
+
+ggplot(data = cwm_ses_temp_long, aes(x = value)) +
+  geom_histogram() +
+  geom_vline(xintercept = 0) +
+  facet_wrap(~trait) +
+  theme_bw()
+
+```
+
 
 # RLQ for traits, abundance, and environment
 
 
 ```{r}
+## Correspondence analysis of the L matrix/table 
+l_coa <- dudi.coa(l_sim_mat, scannf = FALSE)
+
+## PCA of the R and Q data tables
+r_pca <- dudi.pca(r_sim_mat, row.w = l_coa$lw, scannf = FALSE)
+q_pca <- dudi.pca(q_sim_mat, row.w = l_coa$cw, scannf = FALSE)
+
+## Run RLQ function
+sim_rlq <- rlq(r_pca, l_coa, q_pca, scannf = FALSE)
+
+
+## Plot the result
+plot(sim_rlq)
+```
+
+
+Look at that bi-plot of just the trait and environmental variables.
+
+```{r}
+s.arrow(sim_rlq$c1, xlim=c(-1,1), boxes = FALSE)
+s.label(sim_rlq$li, add.plot=T, clab=1.5)
+```
+
+
+# Fourth-Corner
+
+```{r}
+nrepet <- 999 
+sim_fourthcorner <- fourthcorner(r_sim_mat, 
+                                 l_sim_mat, 
+                                 q_sim_mat, 
+                                 modeltype = 6,
+                                 p.adjust.method.G = "none", 
+                                 p.adjust.method.D = "none", 
+                                 nrepet = nrepet)
+
+summary(sim_fourthcorner)
+
+plot(sim_fourthcorner, alpha = 0.05)
+
 ```
 
 

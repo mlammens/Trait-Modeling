@@ -538,6 +538,12 @@ Get R^2 for RDA
 
 Note that the R-squared value for these traits based on these environmental variables is less than 5%.
 
+Perform permutation test on this RDA
+
+```{r}
+anova(bk_traits_ind_rda)
+```
+
 
 ## Make R, L, and Q matrices
 
@@ -677,31 +683,31 @@ Based on these results, and the very small number of plots whose CWM values that
 
 ```{r}
 apply(cwm_ses, MARGIN = 2, mean)
-
 apply(cwm_ses, MARGIN = 2, t.test)
 
 ```
 
 Grouping all values together, there's some indication that FWC is gnerally less random than expected by the null model, so perhaps there is some environmental filtering for this trait going on.
 
+Plot the distributions of the SES values for each trait
+
+```{r}
+cwm_ses_temp <- cwm_ses
+cwm_ses_temp$plot <- row.names(cwm_ses)
+cwm_ses_temp_long <- tidyr::gather(cwm_ses_temp, "trait", "value", 1:6)
+
+ggplot(data = cwm_ses_temp_long, aes(x = value)) +
+  geom_histogram() +
+  geom_vline(xintercept = 0) +
+  facet_wrap(~trait) +
+  theme_bw()
+
+```
+
+
+
 # RLQ for traits, abundance, and environment
 
-
-```{r, eval = FALSE}
-## Correspondence analysis of the L matrix/table 
-l_coa <- dudi.coa(pXs_forCWM, scannf = FALSE)
-
-## PCA of the R and Q data tables
-r_pca <- dudi.pca(bk_cwm_traits_env[env_vars], row.w = l_coa$lw, scannf = FALSE)
-q_pca <- dudi.pca(tXs_forCWM, row.w = l_coa$cw, scannf = FALSE)
-
-## Run RLQ function
-bk_rlq <- rlq(r_pca, l_coa, q_pca, scannf = FALSE)
-
-
-## Plot the result
-plot(bk_rlq)
-```
 
 ```{r}
 ## Correspondence analysis of the L matrix/table 
