@@ -726,6 +726,14 @@ plot(bk_rlq)
 ```
 
 
+Make tri-plot from RLQ results
+
+```{r}
+s.arrow(bk_rlq$c1, xlim=c(-1,1), boxes = FALSE)
+s.label(bk_rlq$li, add.plot=T, clab=1.5)
+```
+
+
 # Fourth-Corner
 
 ```{r}
@@ -738,7 +746,7 @@ bk_fourthcorner <- fourthcorner(r_mat,
                                 p.adjust.method.D = "none", 
                                 nrepet = nrepet)
 
-plot(bk_fourthcorner, alpha = 0.05)
+plot(bk_fourthcorner, alpha = 0.05, col = c("white", "grey", "black"))
 
 ```
 
@@ -754,7 +762,7 @@ bk_fourthcorner_pa <- fourthcorner(r_mat,
                                    p.adjust.method.D = "none", 
                                    nrepet = nrepet)
 
-plot(bk_fourthcorner_pa, alpha = 0.05)
+plot(bk_fourthcorner_pa, alpha = 0.05, col = c("white", "grey", "black"))
 
 ```
 

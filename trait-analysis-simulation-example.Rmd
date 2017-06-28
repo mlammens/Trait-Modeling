@@ -514,7 +514,7 @@ sim_fourthcorner <- fourthcorner(r_sim_mat,
 
 summary(sim_fourthcorner)
 
-plot(sim_fourthcorner, alpha = 0.05)
+plot(sim_fourthcorner, alpha = 0.05, col = c("white", "grey", "black"))
 
 ```
 
