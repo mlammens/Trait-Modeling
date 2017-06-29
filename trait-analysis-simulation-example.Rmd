@@ -207,11 +207,20 @@ summary(indXtraits_rda)
 ```
 
 ```{r}
+plot( indXtraits_rda, type='none', scaling = 1 )
+points( indXtraits_rda, pch=20, cex=0.8, scaling = 1 )
+text(indXtraits_rda,display='species',col='red',axis.bp=TRUE, scaling = 1)
+text(indXtraits_rda,display='bp', scaling = 1)
+```
+
+```{r}
 plot( indXtraits_rda, type='none', scaling = 2 )
 points( indXtraits_rda, pch=20, cex=0.8, scaling = 2 )
 text(indXtraits_rda,display='species',col='red',axis.bp=TRUE, scaling = 2)
 text(indXtraits_rda,display='bp', scaling = 2)
 ```
+
+
 
 Get coefficients, adjusted r^2, and perform permutation tests for this RDA
 

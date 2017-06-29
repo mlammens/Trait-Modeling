@@ -522,6 +522,12 @@ text(bk_traits_ind_rda,display='species',col='red',axis.bp=TRUE, scaling = 1)
 text(bk_traits_ind_rda,display='bp', scaling = 1)
 ```
 
+```{r}
+plot( bk_traits_ind_rda, type='none', scaling = 2 )
+points( bk_traits_ind_rda, pch=20, cex=0.8, scaling = 2 )
+text(bk_traits_ind_rda,display='species',col='red',axis.bp=TRUE, scaling = 2)
+text(bk_traits_ind_rda,display='bp', scaling = 2)
+```
 
 Get coefficients for RDA
 
@@ -590,6 +596,14 @@ plot( bk_cwm_traits_rda, type='none', scaling = 1 )
 points( bk_cwm_traits_rda, pch=20, cex=0.8, scaling = 1 )
 text(bk_cwm_traits_rda,display='species',col='red',axis.bp=TRUE, scaling = 1)
 text(bk_cwm_traits_rda,display='bp', scaling = 1)
+```
+
+
+```{r}
+plot( bk_cwm_traits_rda, type='none', scaling = 2 )
+points( bk_cwm_traits_rda, pch=20, cex=0.8, scaling = 2 )
+text(bk_cwm_traits_rda,display='species',col='red',axis.bp=TRUE, scaling = 2)
+text(bk_cwm_traits_rda,display='bp', scaling = 2)
 ```
 
 # Randomization approaches to test if CWMs show signes of environmental filtering
