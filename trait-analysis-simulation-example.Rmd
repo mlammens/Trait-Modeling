@@ -59,6 +59,7 @@ ggpairs(indXtraits[3:5])
 ```
 
 
+
 # PCA of individual-level traits
 
 In order to reduce dimensionality of the trait data set, we can apply principal component analysis. 
@@ -193,25 +194,38 @@ The **L** matrix is a $n \times p$ table of abundances (or occurrences) of $p$ s
 l_sim <- read.csv("plotXspec_abund_sim.csv")
 ```
 
+
 # RDA of traits by environment
 
 ## Individual-level RDA
 
+Make a dataset with standarized Y and X values
+
+```{r}
+traitsXspeciesXenv_std <- traitsXspeciesXenv
+traitsXspeciesXenv_std[3:7] <- scale(traitsXspeciesXenv_std[3:7])
+```
+
+
 ```{r}
 indXtraits_rda <-
-  rda(formula = traitsXspeciesXenv[c("lma", "c_to_n", "succulence")] ~ ev1 + ev2, data = traitsXspeciesXenv) 
+  rda(formula = traitsXspeciesXenv[c("lma", "c_to_n", "succulence")] ~ ev1 + ev2, data = traitsXspeciesXenv_std) 
 ```
 
 ```{r}
 summary(indXtraits_rda)
 ```
 
+Tri-plot - scaling = 1
+
 ```{r}
-plot( indXtraits_rda, type='none', scaling = 1 )
-points( indXtraits_rda, pch=20, cex=0.8, scaling = 1 )
+plot( indXtraits_rda, type='none', scaling = 1)
+points( indXtraits_rda, pch=20, cex=0.8, scaling = 1)
 text(indXtraits_rda,display='species',col='red',axis.bp=TRUE, scaling = 1)
 text(indXtraits_rda,display='bp', scaling = 1)
 ```
+
+Tri-plot - scaling = 2
 
 ```{r}
 plot( indXtraits_rda, type='none', scaling = 2 )
@@ -219,8 +233,6 @@ points( indXtraits_rda, pch=20, cex=0.8, scaling = 2 )
 text(indXtraits_rda,display='species',col='red',axis.bp=TRUE, scaling = 2)
 text(indXtraits_rda,display='bp', scaling = 2)
 ```
-
-
 
 Get coefficients, adjusted r^2, and perform permutation tests for this RDA
 
@@ -523,7 +535,7 @@ sim_fourthcorner <- fourthcorner(r_sim_mat,
 
 summary(sim_fourthcorner)
 
-plot(sim_fourthcorner, alpha = 0.05, col = c("white", "grey", "black"))
+plot(sim_fourthcorner, alpha = 0.05)
 
 ```
 
