@@ -1,5 +1,5 @@
 ---
-title: "Trait Analysis Example"
+title: "Trait Analysis CFR Example"
 output:
   html_document:
     toc: yes
@@ -7,9 +7,9 @@ output:
     toc: yes
 ---
 
+This document accompanies the book chapter **Statistical Methods for Modeling Traits**, by Matthew Aiello-Lammens and John Silander, appearing in the **Handbook of Environmental and Ecological Statistics**, edited by Gelfand, Fuentes, Hoeting, and Smith.
 
-In this document, we show several trait modeling analyses using data collected in the Baviaanksloof region of the Cape Floristic Region in South Africa.
-This work accompanies a chapter for the Ecological Statistics Handboodk.
+Here we show the trait modeling analyses discussed in the corresponding chapter, as applied to data collected in the Baviaanksloof region of the Cape Floristic Region in South Africa.
 
 ```{r, message=FALSE}
 library(ggplot2)
@@ -24,6 +24,8 @@ library(picante)
 
 knitr::opts_chunk$set(fig.width=6, fig.height=6) 
 ```
+
+
 
 Read in the trait data sets.
 First need to read in full CFR dataset, then filter to B'kloof data.

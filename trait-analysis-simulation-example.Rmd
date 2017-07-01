@@ -7,10 +7,10 @@ output:
     toc: yes
 ---
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+This document accompanies the book chapter **Statistical Methods for Modeling Traits**, by Matthew Aiello-Lammens and John Silander, appearing in the **Handbook of Environmental and Ecological Statistics**, edited by Gelfand, Fuentes, Hoeting, and Smith.
 
-
-In this document, we show several trait modeling analyses using data collected in the Baviaanksloof region of the Cape Floristic Region in South Africa.
+Here we show the trait modeling analyses discussed in the corresponding chapter, as applied to simulated data.
+Details of the simulated data appear in the document `construct-sim-data.Rmd`.
 
 ```{r, message=FALSE}
 library(ggplot2)
