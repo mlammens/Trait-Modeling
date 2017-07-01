@@ -25,33 +25,21 @@ library(picante)
 knitr::opts_chunk$set(fig.width=6, fig.height=6) 
 ```
 
+# Read in CFR trait data
 
-
-Read in the trait data sets.
-First need to read in full CFR dataset, then filter to B'kloof data.
-Following the notation of Dray and colleagues (REFS), the dataset is used to construct the **Q** matrix.
-The **Q** matrix is the $p \times s$ table describing $s$ traits for $p$ species. 
-By convention, each species is assigned a single value for each trait, usually an average if the trait is measured on a continuous scale.
-In our datasets, we have multiple measurements per species, so we must *reduce* our data, resulting in a loss of some of our collected information.
-Essentially, this process ignores *intra-specific* variation.
-It remains unclear what role *intra-specific* variation plays in determining the patterns of trait by environment relationships in real communities.
+Begin by reading in the CFR individual trait data set.
 
 ```{r}
-cfr_traits_lab <- read.csv("~/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/individualsXtraits_lab.csv")
-
-bk_traits_lab <- filter(cfr_traits_lab, region == "baviaanskloof")
+indXtraits_cfr <- read.csv("individualsXtraits_cfr.csv")
 ```
 
-## Summary information and statistics of trait data
-
-Number of species
+Determine the number of species in the CFR data set.
 
 ```{r}
-length(unique(bk_traits_lab$species))
+length(unique(indXtraits_cfr$species))
 ```
 
-
-### Select a set of traits to investigate
+## Select a set of traits to investigate
 
 For the examples in this chapter, we will use a subset of the traits used in Aiello-Lammens et al. 2016.
 
@@ -65,77 +53,78 @@ For the examples in this chapter, we will use a subset of the traits used in Aie
 ```{r}
 obs_ids <- c("uid", "species", "latitude", "longitude", "region")
 
-lab_traits <- c("lma", "lwr", "leaf_thickness_mm", "max_leaf_width_cm",
-                "fwc", "twig_fwc")
-
+traits <- c("lma", "lwr", "leaf_thickness_mm", "max_leaf_width_cm",
+            "fwc", "twig_fwc")
 ```
 
 
-### Create complete cases data sets
+### Create complete cases data set
+
+We will only use observations from individuals where the data for our set of traits is complete.
 
 ```{r}
-bk_traits_lab_sub <- 
-  bk_traits_lab %>%
-  select(which(names(bk_traits_lab) %in% c(obs_ids, lab_traits)))
+indXtraits_cfr_sub <- 
+  indXtraits_cfr %>%
+  select(which(names(indXtraits_cfr) %in% c(obs_ids, traits)))
 
-bk_traits_lab_complete <- 
-  bk_traits_lab_sub[complete.cases(bk_traits_lab_sub[lab_traits]), ]
+indXtraits_cfr_complete <- 
+  indXtraits_cfr_sub[complete.cases(indXtraits_cfr_sub[traits]), ]
 ```
 
+# Exploratory Data Analysis
 
-# Data visualization
-
-First look at data in a non-aggregated way. 
-Each data point represents measurements taken from samples collected from individual plants.
+Use data visualization and dimension reduction to investigate large patterns in the trait data.
+In this case, each data point represents trait measurements taken on individual plants.
 
 ## Trait-by-trait plots
 
 Using the `GGally::ggpairs` function.
 
-
 ```{r}
-ggpairs(bk_traits_lab_complete[lab_traits])
+ggpairs(indXtraits_cfr_complete[traits])
 ```
 
 Based on this data visualization, we see that we should perform data transformation.
 As is common in plant ecology, we apply a log~10~ transfromation.
 
 ```{r}
-bk_traits_lab_complete_log10 <- bk_traits_lab_complete
-bk_traits_lab_complete_log10[lab_traits] <- log10(bk_traits_lab_complete_log10[lab_traits])
+indXtraits_cfr_complete_log10 <- indXtraits_cfr_complete
+indXtraits_cfr_complete_log10[traits] <- log10(indXtraits_cfr_complete_log10[traits])
 ```
 
 After log~10~ transformaion, plot trait-trait relationships.
 
 ```{r}
-ggpairs(bk_traits_lab_complete_log10[lab_traits])
-# figon ggsave("../manuscript/figures/cfr_lab_traits.eps", device = "eps")
+temp <- indXtraits_cfr_complete_log10[traits]
+names(temp) <- c("LMA", "LWR", "Lf_Thick", "Lf_Width", "FWC", "Twig_FWC")
+ggpairs(temp)
+#ggsave("../manuscript/figures/cfr_traits.png", device = "png", width = 5, height = 5, units = "in")
 ```
 
 
-# PCA of individual-level traits
+## PCA of individual-level traits
 
 In order to reduce dimensionality of the lab trait data set, we can apply principal component analysis. 
 
 ```{r}
-bk_traits_lab_pca <- rda(bk_traits_lab_complete_log10[lab_traits], scale = TRUE)
+indXtraits_cfr_pca <- rda(indXtraits_cfr_complete_log10[traits], scale = TRUE)
 ```
 
 Plot biplot and examine summary.
 
 ```{r}
-bk_traits_lab_pca
-summary(bk_traits_lab_pca, scaling = 2)
-summary(bk_traits_lab_pca, scaling = 1)
+indXtraits_cfr_pca
+summary(indXtraits_cfr_pca, scaling = 2)
+summary(indXtraits_cfr_pca, scaling = 1)
 ```
 
 ```{r}
-biplot(bk_traits_lab_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"))
-biplot(bk_traits_lab_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"))
+biplot(indXtraits_cfr_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"))
+biplot(indXtraits_cfr_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"))
 ```
 
 ```{r}
-biplot(bk_traits_lab_pca, scaling = 1, main = "PCA - scaling = 1", type = c("text", "points"))
+biplot(indXtraits_cfr_pca, scaling = 1, main = "PCA - scaling = 1", type = c("text", "points"))
 ```
 
 
@@ -150,9 +139,21 @@ I will use the log-transformed values and complete data sets used in the PCA abo
 
 ## Species-level lab traits
 
+
+
+
+## Create a **Q** matrix
+
+The **Q** matrix is the $p \times s$ table describing $s$ traits for $p$ species. 
+By convention, each species is assigned a single value for each trait, usually an average if the trait is measured on a continuous scale.
+Thus, this can be thought of as a **species-level** trait data set.
+In our dataset, we have multiple measurements per species, so we must *reduce* our data, resulting in a loss of some of our collected information.
+Essentially, this process ignores *intra-specific* variation.
+It remains unclear what role *intra-specific* variation plays in determining the patterns of trait by environment relationships in real communities.
+
 ```{r}
-bk_traits_lab_species <-
-  bk_traits_lab_complete_log10 %>%
+indXtraits_cfr_species <-
+  indXtraits_cfr_complete_log10 %>%
   group_by(species) %>%
   dplyr::summarise(max_leaf_width_cm = mean(max_leaf_width_cm),
                    leaf_thickness_mm = mean(leaf_thickness_mm),
@@ -160,9 +161,9 @@ bk_traits_lab_species <-
                    fwc = mean(fwc),
                    lwr = mean(lwr),
                    twig_fwc = mean(twig_fwc))
-
-ggpairs(select(bk_traits_lab_species, -species))
 ```
+
+
 
 
 # PCA of species-level trait data
@@ -171,7 +172,7 @@ We can now perform a PCA of the species-level trait data.
 Note that since we have calculated species-level trait mean values, we are no longer confounding intra- and inter-specific trait variation in this anlaysis.
 
 ```{r}
-bk_traits_species_pca <- rda(bk_traits_lab_species[lab_traits], scale = TRUE)
+bk_traits_species_pca <- rda(indXtraits_cfr_species[traits], scale = TRUE)
 ```
 
 Plot biplot and examine summary.
@@ -274,23 +275,23 @@ That is, this kind of analysis is best done for individuals.
 ### Make combined trait and field site environment datasets
 
 ```{r}
-bk_traits_lab_env <-
-  inner_join(bk_traits_lab_complete_log10, bk_env_fieldsites_complete)
+indXtraits_cfr_env <-
+  inner_join(indXtraits_cfr_complete_log10, bk_env_fieldsites_complete)
 ```
 
 ### Make simple plots of trait x environment relationships
 
 ```{r}
-bk_traits_lab_env_m <-
-  melt(bk_traits_lab_env, measure.vars = lab_traits, variable.name = "Trait", value.name = "Trait.Val")
-bk_traits_lab_env_m <-
-  melt(bk_traits_lab_env_m, measure.vars = env_vars, variable.name = "Env", value.name = "Env.Val")
+indXtraits_cfr_env_m <-
+  melt(indXtraits_cfr_env, measure.vars = traits, variable.name = "Trait", value.name = "Trait.Val")
+indXtraits_cfr_env_m <-
+  melt(indXtraits_cfr_env_m, measure.vars = env_vars, variable.name = "Env", value.name = "Env.Val")
 ```
 
 Make plot
 
 ```{r}
-ggplot(bk_traits_lab_env_m, aes(x = Env.Val, y = Trait.Val)) +
+ggplot(indXtraits_cfr_env_m, aes(x = Env.Val, y = Trait.Val)) +
   geom_point() +
   geom_smooth(method = "lm") +
   facet_grid(Trait ~ Env, scales = "free")
@@ -300,7 +301,7 @@ ggplot(bk_traits_lab_env_m, aes(x = Env.Val, y = Trait.Val)) +
 
 ```{r}
 traitXenv_ols_models <- 
-  bk_traits_lab_env_m %>%
+  indXtraits_cfr_env_m %>%
   group_by(Trait, Env ) %>% 
   do( mod = lm( Trait.Val ~ Env.Val, data = . ) )
 
@@ -319,8 +320,8 @@ traitXenv_ols_models_summary <-
 This analysis applies only to the lab trait data. At each site, multiple individuals for each species were sampled to measure leaf traits. By grouping at the field-site and species levels, we can ignore intra-species - intra-site level variation.
 
 ```{r}
-bk_traits_lab_species_fieldsite <-
-  bk_traits_lab_env %>%
+indXtraits_cfr_species_fieldsite <-
+  indXtraits_cfr_env %>%
   group_by(uid, species) %>%
   summarise(latitude = unique(latitude), longitude = unique(longitude), region = unique(region),
             max_leaf_width_cm = mean(max_leaf_width_cm),
@@ -338,16 +339,16 @@ bk_traits_lab_species_fieldsite <-
 Melt dataset
 
 ```{r}
-bk_traits_lab_species_fieldsite_m <-
-  melt(bk_traits_lab_species_fieldsite, measure.vars = lab_traits, variable.name = "Trait", value.name = "Trait.Val")
-bk_traits_lab_species_fieldsite_m <-
-  melt(bk_traits_lab_species_fieldsite_m, measure.vars = env_vars, variable.name = "Env", value.name = "Env.Val")
+indXtraits_cfr_species_fieldsite_m <-
+  melt(indXtraits_cfr_species_fieldsite, measure.vars = traits, variable.name = "Trait", value.name = "Trait.Val")
+indXtraits_cfr_species_fieldsite_m <-
+  melt(indXtraits_cfr_species_fieldsite_m, measure.vars = env_vars, variable.name = "Env", value.name = "Env.Val")
 ```
 
 Make plot
 
 ```{r}
-ggplot(bk_traits_lab_species_fieldsite_m, aes(x = Env.Val, y = Trait.Val)) +
+ggplot(indXtraits_cfr_species_fieldsite_m, aes(x = Env.Val, y = Trait.Val)) +
   geom_point() +
   geom_smooth(method = "lm") +
   facet_grid(Trait ~ Env, scales = "free")
@@ -393,11 +394,11 @@ pXs <- dplyr::select( pXs, -plot_smpl )
 ### Determine which species are in both the trait and plot datasets
 
 ```{r}
-spec_both <- intersect( bk_traits_lab_species$species, names(pXs) )
+spec_both <- intersect( indXtraits_cfr_species$species, names(pXs) )
 
 ## Extract only those species with traits from both the pXs and tXs data.frames
 pXs_forCWM <- pXs[ spec_both ]
-tXs_forCWM <- filter(bk_traits_lab_species, species %in% spec_both )
+tXs_forCWM <- filter(indXtraits_cfr_species, species %in% spec_both )
 
 # ## Remove plots that are "empty" after removing species w/o traits
 # pXs_forCWM <- pXs_forCWM[ -which( apply( pXs_forCWM, MARGIN = 1, FUN = sum ) == 0 ), ]
@@ -446,7 +447,7 @@ bk_cwm_traits_env <-
 
 ```{r}
 ## Calculate PCA of CWM values
-bk_cwm_traits_pca <- rda( bk_cwm_traits[lab_traits], scale = TRUE )
+bk_cwm_traits_pca <- rda( bk_cwm_traits[traits], scale = TRUE )
 bk_cwm_traits_pca$CA$eig / sum( bk_cwm_traits_pca$CA$eig )
 cumsum( bk_cwm_traits_pca$CA$eig / sum( bk_cwm_traits_pca$CA$eig ) )
 
@@ -454,7 +455,7 @@ cumsum( bk_cwm_traits_pca$CA$eig / sum( bk_cwm_traits_pca$CA$eig ) )
 ## -------------------------------------------------------------------------- ##
 
 ## Extract the PCA scores
-bk_cwm_traits_pca_scores <- scores(bk_cwm_traits_pca, choices = 1:length(lab_traits))$sites
+bk_cwm_traits_pca_scores <- scores(bk_cwm_traits_pca, choices = 1:length(traits))$sites
 
 ## Convert to data.frame
 bk_cwm_traits_pca_scores <- as.data.frame( bk_cwm_traits_pca_scores )
@@ -465,7 +466,7 @@ bk_cwm_traits <- cbind( bk_cwm_traits, bk_cwm_traits_pca_scores )
 
 ## Extract loadings
 bk_cwm_traits_pca_loadings <- 
-  scores(bk_cwm_traits_pca, choices = 1:length(lab_traits))$species 
+  scores(bk_cwm_traits_pca, choices = 1:length(traits))$species 
 
 ## Convert to data.frame
 bk_cwm_traits_pca_loadings <- as.data.frame( bk_cwm_traits_pca_loadings )
@@ -510,7 +511,7 @@ The second is considering the community weighted means of the releve plots, appl
 
 ```{r}
 bk_traits_ind_rda <- 
-  rda(formula = bk_traits_lab_env[lab_traits] ~ MTmax.01 + MTmin.07 + altitude + solar_rad, data = bk_traits_lab_env)
+  rda(formula = indXtraits_cfr_env[traits] ~ MTmax.01 + MTmin.07 + altitude + solar_rad, data = indXtraits_cfr_env)
 ```
 
 ```{r}
@@ -575,7 +576,7 @@ This appraoch is equivelant to the first methods proposed by Kleyer et al. 2012
 
 ```{r}
 bk_cwm_traits_rda <- 
-  rda(formula = bk_cwm_traits_env[lab_traits] ~ MTmax.01 + MTmin.07 + altitude + solar_rad, data = bk_cwm_traits_env)
+  rda(formula = bk_cwm_traits_env[traits] ~ MTmax.01 + MTmin.07 + altitude + solar_rad, data = bk_cwm_traits_env)
 print(bk_cwm_traits_rda)
 ```
 

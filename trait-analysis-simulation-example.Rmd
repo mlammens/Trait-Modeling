@@ -26,67 +26,58 @@ library(picante)
 knitr::opts_chunk$set(fig.width=6, fig.height=6) 
 ```
 
-Read in the simulated trait data sets.
-These data were simulated using the script `construct-sim-data.Rmd`.
+# Read in simulated trait data
 
-Following the notation of Dray and colleagues (REFS), we will have a **Q** matrix.
-The **Q** matrix is the $p \times s$ table describing $s$ traits for $p$ species. 
-By convention, each species is assigned a single value for each trait, usually an average if the trait is measured on a continuous scale.
-In our datasets, we have multiple measurements per species, so we must *reduce* our data, resulting in a loss of some of our collected information.
-Essentially, this process ignores *intra-specific* variation.
-It remains unclear what role *intra-specific* variation plays in determining the patterns of trait by environment relationships in real communities.
+Begin by reading in the simulated individual trait data set.
 
 ```{r}
-indXtraits <- read.csv("individualsXtraits_sim.csv")
-q_sim <- indXtraits %>% group_by(spec) %>% 
-  summarise(lma = mean(lma),
-            c_to_n = mean(c_to_n),
-            succulence = mean(succulence))
+indXtraits_sim <- read.csv("individualsXtraits_sim.csv")
 ```
 
 
-# Data visualization
+# Exploratory Data Analysis
 
-First look at data in a non-aggregated way. 
-Each data point represents measurements taken from samples collected from individual plants.
+Use data visualization and dimension reduction to investigate large patterns in the trait data.
+In this case, each data point represents trait measurements simulated for individual plants.
+
 
 ## Trait-by-trait plots
 
 Using the `GGally::ggpairs` function.
 
 ```{r}
-ggpairs(indXtraits[3:5])
+ggpairs(indXtraits_sim[3:5])
 ```
 
 
 
-# PCA of individual-level traits
+## PCA of individual-level traits
 
 In order to reduce dimensionality of the trait data set, we can apply principal component analysis. 
 
 ```{r}
-indXtraits_pca <- rda(indXtraits[3:5], scale = TRUE)
+indXtraits_sim_pca <- rda(indXtraits_sim[3:5], scale = TRUE)
 ```
 
 Plot biplot and examine summary.
 
 ```{r}
-indXtraits_pca
+indXtraits_sim_pca
 ```
 
 ```{r, eval=FALSE}
-summary(indXtraits_pca, scaling = 2)
-summary(indXtraits_pca, scaling = 1)
+summary(indXtraits_sim_pca, scaling = 2)
+summary(indXtraits_sim_pca, scaling = 1)
 ```
 
 
 ```{r}
-biplot(indXtraits_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"))
-biplot(indXtraits_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"))
+biplot(indXtraits_sim_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"))
+biplot(indXtraits_sim_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"))
 ```
 
 ```{r}
-biplot(indXtraits_pca, scaling = 1, main = "PCA - scaling = 1", type = c("text", "points"))
+biplot(indXtraits_sim_pca, scaling = 1, main = "PCA - scaling = 1", type = c("text", "points"))
 ```
 
 
@@ -96,6 +87,27 @@ As outlined in the main text of the chapter, there are many challenges and probl
 However, most of the 'standard' trait analyses (e.g., Fourth-corner problem, RLQ, etc.) use only species-level trait values.
 Furthemore, to some degree, the assumption of indpendence among samples is violated when we combine both intra- and inter-specific sources of variation, as we have done in the PCA of traits shown above. 
 For these reasons, it's worth calculating species-level mean trait values, i.e. the Q matrix described above.
+
+
+## Create a **Q** matrix
+
+The **Q** matrix is the $p \times s$ table describing $s$ traits for $p$ species. 
+By convention, each species is assigned a single value for each trait, usually an average if the trait is measured on a continuous scale.
+Thus, this can be thought of as a **species-level** trait data set.
+In our dataset, we have multiple measurements per species, so we must *reduce* our data, resulting in a loss of some of our collected information.
+Essentially, this process ignores *intra-specific* variation.
+It remains unclear what role *intra-specific* variation plays in determining the patterns of trait by environment relationships in real communities.
+
+
+```{r}
+q_sim <- indXtraits_sim %>% group_by(spec) %>% 
+  summarise(lma = mean(lma),
+            c_to_n = mean(c_to_n),
+            succulence = mean(succulence))
+
+```
+
+
 
 ### Species-level trait-trait relationships
 
@@ -135,7 +147,7 @@ That is, this kind of analysis is best done for individuals.
 
 ```{r}
 ## Make a combined data.frame for plotting
-traitsXspeciesXenv <- merge(indXtraits, r_sim, by = "plot")
+traitsXspeciesXenv <- merge(indXtraits_sim, r_sim, by = "plot")
 
 ## Melt this data.frame in a two-step process
 traitsXspeciesXenv_m <- melt(traitsXspeciesXenv, 
@@ -208,40 +220,40 @@ traitsXspeciesXenv_std[3:7] <- scale(traitsXspeciesXenv_std[3:7])
 
 
 ```{r}
-indXtraits_rda <-
+indXtraits_sim_rda <-
   rda(formula = traitsXspeciesXenv[c("lma", "c_to_n", "succulence")] ~ ev1 + ev2, data = traitsXspeciesXenv_std) 
 ```
 
 ```{r}
-summary(indXtraits_rda)
+summary(indXtraits_sim_rda)
 ```
 
 Tri-plot - scaling = 1
 
 ```{r}
-plot( indXtraits_rda, type='none', scaling = 1)
-points( indXtraits_rda, pch=20, cex=0.8, scaling = 1)
-text(indXtraits_rda,display='species',col='red',axis.bp=TRUE, scaling = 1)
-text(indXtraits_rda,display='bp', scaling = 1)
+plot( indXtraits_sim_rda, type='none', scaling = 1)
+points( indXtraits_sim_rda, pch=20, cex=0.8, scaling = 1)
+text(indXtraits_sim_rda,display='species',col='red',axis.bp=TRUE, scaling = 1)
+text(indXtraits_sim_rda,display='bp', scaling = 1)
 ```
 
 Tri-plot - scaling = 2
 
 ```{r}
-plot( indXtraits_rda, type='none', scaling = 2 )
-points( indXtraits_rda, pch=20, cex=0.8, scaling = 2 )
-text(indXtraits_rda,display='species',col='red',axis.bp=TRUE, scaling = 2)
-text(indXtraits_rda,display='bp', scaling = 2)
+plot( indXtraits_sim_rda, type='none', scaling = 2 )
+points( indXtraits_sim_rda, pch=20, cex=0.8, scaling = 2 )
+text(indXtraits_sim_rda,display='species',col='red',axis.bp=TRUE, scaling = 2)
+text(indXtraits_sim_rda,display='bp', scaling = 2)
 ```
 
 Get coefficients, adjusted r^2, and perform permutation tests for this RDA
 
 ```{r}
-coef(indXtraits_rda)
+coef(indXtraits_sim_rda)
 
-RsquareAdj(indXtraits_rda)
+RsquareAdj(indXtraits_sim_rda)
 
-anova(indXtraits_rda)
+anova(indXtraits_sim_rda)
 ```
 
 
@@ -286,7 +298,7 @@ What do we get if we calculate an actual CWM using the full dataset?
 
 ```{r}
 cwm_traits_direct <-
-  indXtraits %>%
+  indXtraits_sim %>%
   group_by(plot) %>%
   summarise( lma = mean(lma),
              c_to_n = mean(c_to_n),
