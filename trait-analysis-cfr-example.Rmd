@@ -136,14 +136,17 @@ Examine biplots using `scaling = 1` and `scaling = 2`
 ### Individual-level PCA biplot - scaling = 1
 
 ```{r}
-biplot(indXtraits_cfr_pca, scaling = 1, main = "PCA - scaling = 1", type = c("text", "points"), col = "black")
+biplot(indXtraits_cfr_pca, scaling = 1,  type = c("text", "points"), col = "black")
 ```
 
 ### Individual-level PCA biplot - scaling = 2
 
 ```{r}
-biplot(indXtraits_cfr_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"), col = "black")
-biplot(indXtraits_cfr_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"), col = "black")
+biplot(indXtraits_cfr_pca, scaling = 2, type = c("text", "points"), col = "black")
+```
+
+```{r}
+biplot(indXtraits_cfr_pca, scaling = 2, choices = c(1,3), type = c("text", "points"), col = "black")
 ```
 
 
@@ -642,6 +645,8 @@ ggplot(data = cwm_ses_temp_long, aes(x = value)) +
   geom_histogram() +
   geom_vline(xintercept = 0) +
   facet_wrap(~trait) +
+  ylab("Frequency") +
+  xlab("SES value") +
   theme_bw()
 
 ```
@@ -710,6 +715,34 @@ cfr_fourthcorner_pa <- fourthcorner(r_cfr_mat,
                                     nrepet = nrepet)
 
 plot(cfr_fourthcorner_pa, alpha = 0.05, col = c("white", "grey", "black"))
+
+```
+
+## Statistical Model-Based Fourth Corner Solution
+
+Note, this analysis was not included in the chapter, though the method was discussed (Brown et al. 2014).
+Here we are taking advantage of the `traitglm` function in the `mvabund` package.
+The syntax was taken from a [RPub document prepared by David Warton](http://rpubs.com/dwarton/68823). 
+
+**NOTE:** We apply this method with presence/absence data only.
+
+```{r, eval=FALSE}
+library(mvabund)
+
+l_cfr_mat_pa <- l_cfr_mat
+l_cfr_mat_pa[l_cfr_mat_pa > 0] <- 1
+
+# cfr_fc_solution_pa <- traitglm(l_cfr_mat_pa, r_cfr_mat, q_cfr_mat, method = "manyglm", family = "binomial")
+cfr_fc_solution_pa <- traitglm(l_cfr_mat_pa, r_cfr_mat, q_cfr_mat, method = "glm1path", family = "binomial")
+cfr_fc_solution_pa$fourth.corner
+
+library(lattice)
+a = max( abs(cfr_fc_solution_pa$fourth.corner) )
+colort = colorRampPalette(c("blue","white","red")) 
+plot.4th = levelplot(t(as.matrix(cfr_fc_solution_pa$fourth.corner)), xlab="Environmental Variables",
+                     ylab="Species traits", col.regions=colort(100), at=seq(-a, a, length=100),
+                     scales = list( x= list(rot = 45)))
+print(plot.4th)
 
 ```
 
