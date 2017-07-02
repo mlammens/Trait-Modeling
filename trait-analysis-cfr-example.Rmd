@@ -71,6 +71,17 @@ indXtraits_cfr_complete <-
   indXtraits_cfr_sub[complete.cases(indXtraits_cfr_sub[traits]), ]
 ```
 
+### Change names of traits 
+
+This step is to make prettier plots.
+
+```{r}
+traits <- c("LMA", "LWR", "Lf_Thick", "Lf_Width", "FWC", "Twig_FWC")
+names(indXtraits_cfr_complete) <- c("uid", "species", "latitude", "longitude", "region",
+                                    "Lf_Width", "Lf_Thick", "LMA", "FWC", "LWR", "Twig_FWC")
+```
+
+
 # Exploratory Data Analysis
 
 Use data visualization and dimension reduction to investigate large patterns in the trait data.
@@ -95,9 +106,7 @@ indXtraits_cfr_complete_log10[traits] <- log10(indXtraits_cfr_complete_log10[tra
 After log~10~ transformaion, plot trait-trait relationships.
 
 ```{r}
-temp <- indXtraits_cfr_complete_log10[traits]
-names(temp) <- c("LMA", "LWR", "Lf_Thick", "Lf_Width", "FWC", "Twig_FWC")
-ggpairs(temp)
+ggpairs(indXtraits_cfr_complete_log10[traits])
 #ggsave("../manuscript/figures/cfr_traits.png", device = "png", width = 5, height = 5, units = "in")
 ```
 
@@ -105,181 +114,183 @@ ggpairs(temp)
 ## PCA of individual-level traits
 
 In order to reduce dimensionality of the lab trait data set, we can apply principal component analysis. 
+We carry out a PCA of the simulation data set using the `rda` function from the `vegan` package.
+Note that the option `scale = TRUE` is chosen here, resulting in the data set being scaled to unit variance.
 
 ```{r}
 indXtraits_cfr_pca <- rda(indXtraits_cfr_complete_log10[traits], scale = TRUE)
 ```
 
-Plot biplot and examine summary.
+Examine summary.
 
 ```{r}
 indXtraits_cfr_pca
-summary(indXtraits_cfr_pca, scaling = 2)
+```
+
+```{r}
 summary(indXtraits_cfr_pca, scaling = 1)
 ```
 
-```{r}
-biplot(indXtraits_cfr_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"))
-biplot(indXtraits_cfr_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"))
-```
+Examine biplots using `scaling = 1` and `scaling = 2`
+
+### Individual-level PCA biplot - scaling = 1
 
 ```{r}
-biplot(indXtraits_cfr_pca, scaling = 1, main = "PCA - scaling = 1", type = c("text", "points"))
+biplot(indXtraits_cfr_pca, scaling = 1, main = "PCA - scaling = 1", type = c("text", "points"), col = "black")
+```
+
+### Individual-level PCA biplot - scaling = 2
+
+```{r}
+biplot(indXtraits_cfr_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"), col = "black")
+biplot(indXtraits_cfr_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"), col = "black")
 ```
 
 
 # Species-level trait values
 
 As outlined in the main text of the chapter, there are many challenges and problems presented when *intraspecific* trait variation is either ignored or not considered.
-However, most of the 'standard' trait analyses (e.g., Fourth-corner problem, RLQ, etc.) use only species-level trait values.
-Furthemore, to some degree, the assumption of indpendence among samples is violated when we combine both intra- and inter-specific sources of variation, as we have done in the PCA of lab traits, shown above. 
-For these reasons, it's worth calculating species-level mean trait values.
-
-I will use the log-transformed values and complete data sets used in the PCA above in calculating species-level mean trait values.
-
-## Species-level lab traits
-
-
-
+However, most of the 'standard' trait analyses (e.g., Fourth-corner problem, RLQ, etc.) use only **species-level** trait values.
+For these reasons, it's worth calculating species-level mean trait values, i.e. the Q matrix described above.
+The **Q** matrix is the $p \times s$ table describing $s$ traits for $p$ species. 
+By convention, each species is assigned a single value for each trait, usually an average if the trait is measured on a continuous scale.
+In our dataset, we have multiple measurements per species, so we must *reduce* our data, resulting in a loss of some of our collected information.
 
 ## Create a **Q** matrix
 
-The **Q** matrix is the $p \times s$ table describing $s$ traits for $p$ species. 
-By convention, each species is assigned a single value for each trait, usually an average if the trait is measured on a continuous scale.
-Thus, this can be thought of as a **species-level** trait data set.
-In our dataset, we have multiple measurements per species, so we must *reduce* our data, resulting in a loss of some of our collected information.
-Essentially, this process ignores *intra-specific* variation.
-It remains unclear what role *intra-specific* variation plays in determining the patterns of trait by environment relationships in real communities.
-
 ```{r}
-indXtraits_cfr_species <-
+q_cfr <-
   indXtraits_cfr_complete_log10 %>%
   group_by(species) %>%
-  dplyr::summarise(max_leaf_width_cm = mean(max_leaf_width_cm),
-                   leaf_thickness_mm = mean(leaf_thickness_mm),
-                   lma = mean(lma),
-                   fwc = mean(fwc),
-                   lwr = mean(lwr),
-                   twig_fwc = mean(twig_fwc))
+  dplyr::summarise(LMA = mean(LMA),
+                   LWR = mean(LWR),
+                   Lf_Thick = mean(Lf_Thick),
+                   Lf_Width = mean(Lf_Width),
+                   FWC = mean(FWC),
+                   Twig_FWC = mean(Twig_FWC))
 ```
 
 
+### Species-level trait-trait relationships
+
+```{r}
+ggpairs(select(q_cfr, -species))
+```
 
 
-# PCA of species-level trait data
+### PCA of species-level trait data
 
 We can now perform a PCA of the species-level trait data.
 Note that since we have calculated species-level trait mean values, we are no longer confounding intra- and inter-specific trait variation in this anlaysis.
 
 ```{r}
-bk_traits_species_pca <- rda(indXtraits_cfr_species[traits], scale = TRUE)
+specXtraits_cfr_pca <- rda(q_cfr[traits], scale = TRUE)
 ```
 
-Plot biplot and examine summary.
+Examine summary.
 
 ```{r}
-bk_traits_species_pca
-summary(bk_traits_species_pca, scaling = 2)
-summary(bk_traits_species_pca, scaling = 1)
+specXtraits_cfr_pca
 ```
-
 
 ```{r}
-biplot(bk_traits_species_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"))
-biplot(bk_traits_species_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"))
+summary(specXtraits_cfr_pca, scaling = 1)
 ```
 
+Examine biplots using `scaling = 1` and `scaling = 2`
 
+### Species-level PCA biplot - scaling = 1
 
-## Read in environmental data
+```{r}
+biplot(specXtraits_cfr_pca, scaling = 1, main = "PCA - scaling = 2", type = c("text", "points"), col = "black")
+```
 
-We have two sets of environmental data to consider.
+### Species-level PCA biplot - scaling = 2
+
+```{r}
+biplot(specXtraits_cfr_pca, scaling = 2, main = "PCA - scaling = 2", type = c("text", "points"), col = "black")
+biplot(specXtraits_cfr_pca, scaling = 2, choices = c(1,3), main = "PCA - scaling = 2", type = c("text", "points"), col = "black")
+```
+
+***
+
+# Read in environmental data
+
+We have two sets of environmental data to consider for the CFR data set.
 The first is the observations of environmental conditions at the sites were trait data were collected.
 The second is the observations of environmental conditions at the *plots* were species relative percent cover values were collected. 
 These locations were nearby to each other, but not exactly matching.
-The dataset of environmental conditions at the plots corresponds to the **R** matrix, following the notation of Dray and colleagues. 
-This matrix is an $n \times m$ table of measurements of $m$ environmental variables taken at $n$ plots or sites.
-
+The dataset of environmental conditions at the plots corresponds to the **R** matrix, an $n \times m$ table of measurements of $m$ environmental variables taken at $n$ plots or sites.
 
 ```{r}
-cfr_env_plots <- read.csv("~/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/plotXenv.csv")
-cfr_env_fieldsites <- read.csv("~/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/field_collXenv.csv")
-bk_env_plots <- filter(cfr_env_plots, region == "baviaanskloof")
-bk_env_fieldsites <- filter(cfr_env_fieldsites, region == "baviaanskloof")
+plotXenv_cfr_complete <- read.csv("plotXenv_cfr.csv")
+fieldsiteXenv_cfr_complete <- read.csv("fieldsiteXenv_cfr.csv")
 ```
 
-### Summary information and variable selection
+## Summary information and variable selection
 
 For this example analysis, we're going to rely on the environmental variable selection already used in Aiello-Lammens et al. (2016). 
 The environmental variables used included minimum temperature in July (MTmin.07), maximum temperature in January (MTmax.01), aspect (separately as northerness and easterness), solar radiation, and elevation.
 
 ```{r}
-plot_ids <- c("plot_smpl", "latitutde", "longitude", "region")
+plot_ids <- c("plot_smpl", "latitude", "longitude", "region")
 fieldsite_ids <- c("latitude", "longitude", "region")
 env_vars <- c("MTmin.07", "MTmax.01", "solar_rad", "altitude")
 ```
 
-#### Create complete cases data sets
+### Standardize (Center and Scale) the environmental variables
 
 ```{r}
-bk_env_plots_sub <- 
-  bk_env_plots %>%
-  select(which(names(bk_env_plots) %in% c(plot_ids, env_vars)))
-bk_env_plots_complete <-
-  bk_env_plots_sub[complete.cases(bk_env_plots_sub), ]
+plotXenv_cfr_complete[env_vars] <- scale(plotXenv_cfr_complete[env_vars])
+fieldsiteXenv_cfr_complete[env_vars] <- scale(fieldsiteXenv_cfr_complete[env_vars])
+```
 
-bk_env_fieldsites_sub <- 
-  bk_env_fieldsites %>%
-  select(which(names(bk_env_fieldsites) %in% c(fieldsite_ids, env_vars)))
-bk_env_fieldsites_complete <-
-  bk_env_fieldsites_sub[complete.cases(bk_env_fieldsites_sub), ]
+### Change names for prettier plots
 
+```{r}
+env_vars <- c("MTmin.07", "MTmax.01", "Solar_Rad", "Elevation")
+plotXenv_cfr_complete <- dplyr::rename(plotXenv_cfr_complete, Solar_Rad = solar_rad, Elevation = altitude)
+fieldsiteXenv_cfr_complete <- dplyr::rename(fieldsiteXenv_cfr_complete, Solar_Rad = solar_rad, Elevation = altitude)
+```
+
+### Set R CFR matrix
+
+```{r}
+r_cfr <- dplyr::select(plotXenv_cfr_complete, -latitude, -longitude, -region)
 ```
 
 
-#### Standardize (Center and Scale) the environmental variables
-
-```{r}
-bk_env_plots_complete[env_vars] <- scale(bk_env_plots_complete[env_vars])
-bk_env_fieldsites_complete[env_vars] <- scale(bk_env_fieldsites_complete[env_vars])
-```
-
-
-#### EDA of environmental data
+## Exploratory data analysis of environmental data
 
 Use `ggpairs` to examine distributional patterns of environmental variables and correlation among variables.
 
-##### Environmental variables at Plots
+#### Environmental variables at Plots
 
 ```{r}
-ggpairs(bk_env_plots_complete[env_vars])
+ggpairs(r_cfr[env_vars])
 ```
 
 
-##### Environmental variables at Field Sites
-
+#### Environmental variables at Field Sites
 
 Note that there are strong correlations between MTmin.07 and MTmax.01, and between both of these variables and Elevation.
 This is to be expected, and basically shows that as elevation goes up, temperature goes down, and locations with warmer (colder) winters have warmer (colder) summers.
 
 ```{r}
-ggpairs(bk_env_fieldsites_complete[env_vars])
+ggpairs(fieldsiteXenv_cfr_complete[env_vars])
 ```
 
-# Individual-level Trait by environment relationships - field sites
+# Individual-level Trait by environment relationships 
 
 We can look for associations between trait values and environmental values at the field sites where trait measurments were made. 
 This form of analysis is important in trait by environment analyses, but generally not available if species-level trait values are being used.
-That is, this kind of analysis is best done for individuals.
 
-### Make combined trait and field site environment datasets
+## Make combined trait and field site environment datasets
 
 ```{r}
 indXtraits_cfr_env <-
-  inner_join(indXtraits_cfr_complete_log10, bk_env_fieldsites_complete)
+  inner_join(indXtraits_cfr_complete_log10, fieldsiteXenv_cfr_complete)
 ```
-
-### Make simple plots of trait x environment relationships
 
 ```{r}
 indXtraits_cfr_env_m <-
@@ -288,7 +299,7 @@ indXtraits_cfr_env_m <-
   melt(indXtraits_cfr_env_m, measure.vars = env_vars, variable.name = "Env", value.name = "Env.Val")
 ```
 
-Make plot
+### Plot individual-level trait-by-environment relationships
 
 ```{r}
 ggplot(indXtraits_cfr_env_m, aes(x = Env.Val, y = Trait.Val)) +
@@ -299,236 +310,63 @@ ggplot(indXtraits_cfr_env_m, aes(x = Env.Val, y = Trait.Val)) +
 
 ### Linear regression models
 
+Run one-at-a-time trait-by-environment OLS models
+
 ```{r}
-traitXenv_ols_models <- 
+traitXenv_ols_models_cfr <- 
   indXtraits_cfr_env_m %>%
   group_by(Trait, Env ) %>% 
   do( mod = lm( Trait.Val ~ Env.Val, data = . ) )
 
-traitXenv_ols_models <- 
-  mutate( traitXenv_ols_models, r_sqrd = summary(mod)$adj.r.squared )
+traitXenv_ols_models_cfr <- 
+  mutate( traitXenv_ols_models_cfr, r_sqrd = summary(mod)$adj.r.squared )
 
-traitXenv_ols_models_summary <-
-  traitXenv_ols_models %>% 
+traitXenv_ols_models_summary_cfr <-
+  traitXenv_ols_models_cfr %>% 
   do(data.frame( var = names(coef(.$mod)),
                  coef(summary(.$mod))))
 
 ```
 
-# Species-level trait by environment variables
-
-This analysis applies only to the lab trait data. At each site, multiple individuals for each species were sampled to measure leaf traits. By grouping at the field-site and species levels, we can ignore intra-species - intra-site level variation.
-
 ```{r}
-indXtraits_cfr_species_fieldsite <-
-  indXtraits_cfr_env %>%
-  group_by(uid, species) %>%
-  summarise(latitude = unique(latitude), longitude = unique(longitude), region = unique(region),
-            max_leaf_width_cm = mean(max_leaf_width_cm),
-            leaf_thickness_mm = mean(leaf_thickness_mm),
-            lma = mean(lma),
-            fwc = mean(fwc),
-            lwr = mean(lwr),
-            twig_fwc = mean(twig_fwc),
-            MTmax.01 = unique(MTmax.01),
-            MTmin.07 = unique(MTmin.07),
-            altitude = unique(altitude),
-            solar_rad = unique(solar_rad))
+print(traitXenv_ols_models_summary_cfr)
 ```
 
-Melt dataset
-
-```{r}
-indXtraits_cfr_species_fieldsite_m <-
-  melt(indXtraits_cfr_species_fieldsite, measure.vars = traits, variable.name = "Trait", value.name = "Trait.Val")
-indXtraits_cfr_species_fieldsite_m <-
-  melt(indXtraits_cfr_species_fieldsite_m, measure.vars = env_vars, variable.name = "Env", value.name = "Env.Val")
-```
-
-Make plot
-
-```{r}
-ggplot(indXtraits_cfr_species_fieldsite_m, aes(x = Env.Val, y = Trait.Val)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  facet_grid(Trait ~ Env, scales = "free")
-```
-
-
-# Community Level Data
-
-## Read in the community level data
-
-The community level data are from surveys that measured relative percent cover for each species in 10 x 5 meter plots in the Baviaanskloof region. 
-In this case, we will only use the "A" plots.
-
-
-```{r}
-plotXspecies_cover <-
-  read.csv("~/Dropbox/UConn-PostDoc/Projects/Dimensions-GCFR/Dimensions-ZA/data_base/plotXspecies_cover.csv")
-bk_plotXspecies_cover <- filter(plotXspecies_cover, region == "baviaanskloof", historic == 0)
-bk_plotXspecies_cover <- bk_plotXspecies_cover[ which(grepl(pattern = "a", x = bk_plotXspecies_cover$plot)), ]
-bk_plotXspecies_cover <- 
-  bk_plotXspecies_cover %>%
-  select(plot_smpl, latitude, longitude, species, perc_cover, rel_perc_cover)
-```
-
-In order to convert this into the **L** matrix, following the notation of Dray et al., we need to reshape the dataset from long to wide. 
-The **L** matrix is a $n \times p$ table of abundances (or occurrences) of $p$ species in $n$ sites (or plots).
-
-```{r}
-pXs <- dcast(data = bk_plotXspecies_cover, 
-             formula = plot_smpl ~ species,
-             value.var = "rel_perc_cover")
-
-## Convert nas to 0
-pXs[ is.na(pXs) ] <- 0
-
-## Assign plots to row.names
-row.names( pXs ) <- pXs$plot_smpl
-pXs <- dplyr::select( pXs, -plot_smpl )
-
-```
-
-
-### Determine which species are in both the trait and plot datasets
-
-```{r}
-spec_both <- intersect( indXtraits_cfr_species$species, names(pXs) )
-
-## Extract only those species with traits from both the pXs and tXs data.frames
-pXs_forCWM <- pXs[ spec_both ]
-tXs_forCWM <- filter(indXtraits_cfr_species, species %in% spec_both )
-
-# ## Remove plots that are "empty" after removing species w/o traits
-# pXs_forCWM <- pXs_forCWM[ -which( apply( pXs_forCWM, MARGIN = 1, FUN = sum ) == 0 ), ]
-
-## Name rows of tXs_forCWM data.frame
-row.names( tXs_forCWM ) <- tXs_forCWM$species
-tXs_forCWM$species <- NULL
-
-```
-
-
-
-# CWM of traits
-
-Use the `FD` package to calculate Community Weighted Mean trait values.
-
-```{r}
-bk_dbFD_traits <-
-  dbFD( x = tXs_forCWM, 
-        a = pXs_forCWM,
-        w.abun = TRUE, 
-        calc.FDiv = TRUE, 
-        calc.CWM = TRUE,
-        corr = "cailliez" )
-
-```
-
-
-```{r}
-## Get the CWM value data.frame
-bk_cwm_traits <- bk_dbFD_traits$CWM
-bk_cwm_traits$plot <- row.names( bk_cwm_traits )
-
-## Use only complete cases
-bk_cwm_traits <- bk_cwm_traits[ complete.cases(bk_cwm_traits), ]
-
-## Add the environmental conditions to these values
-bk_cwm_traits_env <-
-  inner_join(bk_cwm_traits, bk_env_plots_complete, by = c("plot" = "plot_smpl"))
-
-```
-
-
-
-### PCA of CWM trait values
-
-```{r}
-## Calculate PCA of CWM values
-bk_cwm_traits_pca <- rda( bk_cwm_traits[traits], scale = TRUE )
-bk_cwm_traits_pca$CA$eig / sum( bk_cwm_traits_pca$CA$eig )
-cumsum( bk_cwm_traits_pca$CA$eig / sum( bk_cwm_traits_pca$CA$eig ) )
-
-## Extract various PCA values and scores for plotting in ggplot
-## -------------------------------------------------------------------------- ##
-
-## Extract the PCA scores
-bk_cwm_traits_pca_scores <- scores(bk_cwm_traits_pca, choices = 1:length(traits))$sites
-
-## Convert to data.frame
-bk_cwm_traits_pca_scores <- as.data.frame( bk_cwm_traits_pca_scores )
-bk_cwm_traits_vars_pca <- names( bk_cwm_traits_pca_scores )
-
-## Add the pca scores back to the bk_cwm_traits data.frame
-bk_cwm_traits <- cbind( bk_cwm_traits, bk_cwm_traits_pca_scores )
-
-## Extract loadings
-bk_cwm_traits_pca_loadings <- 
-  scores(bk_cwm_traits_pca, choices = 1:length(traits))$species 
-
-## Convert to data.frame
-bk_cwm_traits_pca_loadings <- as.data.frame( bk_cwm_traits_pca_loadings )
-## Add a column for env_var
-bk_cwm_traits_pca_loadings$env_var <- row.names(bk_cwm_traits_pca_loadings)
-
-
-```
-
-```{r}
-ggplot() +
-  geom_segment( data = bk_cwm_traits_pca_loadings, 
-                aes( x = 0, xend = PC1*.2,
-                     y = 0, yend = PC2*.2 ),
-                arrow = arrow( length = unit(0.25, "cm" )), 
-                colour = "black") +      
-  geom_point( data = bk_cwm_traits, 
-              aes( x = PC1, y = PC2 ),
-              alpha = 0.6 ) +
- geom_text( data = bk_cwm_traits_pca_loadings, 
-             aes(x= PC1*.2, y = PC2*.2,
-                 label = env_var ),
-             size = 4,
-             hjust = 0.5 ) + 
-  coord_equal() +
-  xlab( "PC1" ) +
-  ylab( "PC2" ) +
-  theme_bw() +
-  theme( text = element_text(family = "Times", size = 18) )
-```
-
-
-# RDA of traits and environment
-
-Redundancy analysis (RDA) is a form of contrained ordination. 
-Here we apply RDA to the Baviaanskloof dataset, prepared in two ways.
-The first is considering the measurements taken on each individual plant, at the location where it was sampled.
-The second is considering the community weighted means of the releve plots, applying species-level mean trait values.
 
 ## Individual-level RDA
 
+As outlined in the chapter, we can apply RDA to the individual-level trait-environment data.
+
+Run RDA using formula notation.
+Note that here we set `scale = TRUE` to scale the response data.
 
 ```{r}
 bk_traits_ind_rda <- 
-  rda(formula = indXtraits_cfr_env[traits] ~ MTmax.01 + MTmin.07 + altitude + solar_rad, data = indXtraits_cfr_env)
+  rda(formula = indXtraits_cfr_env[traits] ~ MTmax.01 + MTmin.07 + Elevation + Solar_Rad, 
+      data = indXtraits_cfr_env, scale = TRUE)
 ```
+
+Examine summary.
 
 ```{r}
 summary(bk_traits_ind_rda)
 ```
 
+Tri-plot - scaling = 1
+
 ```{r}
 plot( bk_traits_ind_rda, type='none', scaling = 1 )
 points( bk_traits_ind_rda, pch=20, cex=0.8, scaling = 1 )
-text(bk_traits_ind_rda,display='species',col='red',axis.bp=TRUE, scaling = 1)
+text(bk_traits_ind_rda,display='species',col='black',axis.bp=TRUE, scaling = 1)
 text(bk_traits_ind_rda,display='bp', scaling = 1)
 ```
+
+Tri-plot - scaling = 2
 
 ```{r}
 plot( bk_traits_ind_rda, type='none', scaling = 2 )
 points( bk_traits_ind_rda, pch=20, cex=0.8, scaling = 2 )
-text(bk_traits_ind_rda,display='species',col='red',axis.bp=TRUE, scaling = 2)
+text(bk_traits_ind_rda,display='species',col='black',axis.bp=TRUE, scaling = 2)
 text(bk_traits_ind_rda,display='bp', scaling = 2)
 ```
 
@@ -554,65 +392,154 @@ anova(bk_traits_ind_rda)
 ```
 
 
-## Make R, L, and Q matrices
+***
+
+# Community Level Data
+
+## Read in the plot-level abundance data
+
+This data set is equivelant to the **L** matrix, which is an $n \times p$ table of abundances (or occurrences) of $p$ species in $n$ sites (or plots).
+For the CFR data set the community level data are from surveys that measured relative percent cover for each species in 10 x 5 meter plots in the Baviaanskloof region. 
+
 
 ```{r}
-r_mat <- bk_cwm_traits_env[env_vars]
-row.names(r_mat) <- bk_cwm_traits$plot
+plotXspecies_cover_cfr <-  read.csv("plotXspec_abund_cfr.csv")
+```
 
-l_mat <- pXs_forCWM
-names(l_mat) <- sub(" ", ".", names(l_mat))
+In order to convert this into the **L** matrix, we need to reshape the dataset from long to wide. 
 
-q_mat <- tXs_forCWM
-q_mat <- as.data.frame(q_mat)
-row.names(q_mat) <- names(l_mat)
+```{r}
+l_cfr <- dcast(data = plotXspecies_cover_cfr, 
+               formula = plot_smpl ~ species,
+               value.var = "rel_perc_cover")
+
+## Convert nas to 0
+l_cfr[ is.na(l_cfr) ] <- 0
+
+## Assign plots to row.names
+row.names( l_cfr ) <- l_cfr$plot_smpl
+l_cfr <- dplyr::select( l_cfr, -plot_smpl )
+```
+
+
+### Determine which species are in both the trait and plot datasets
+
+```{r}
+spec_both <- intersect( q_cfr$species, names(l_cfr) )
+
+## Extract only those species with traits from both the Q and L data.frames
+l_cfr <- l_cfr[ spec_both ]
+q_cfr_sub <- filter(q_cfr, species %in% spec_both )
+
+## Name rows of q_cfr_sub data.frame
+q_cfr_sub <- as.data.frame(q_cfr_sub)
+row.names( q_cfr_sub ) <- q_cfr_sub$species
+q_cfr_sub$species <- NULL
 
 ```
 
 
-# CWM-RDA
+## CWM trait values
 
-This appraoch is equivelant to the first methods proposed by Kleyer et al. 2012
+Use the `FD` package to calculate Community Weighted Mean trait values.
+Note that the row names in Q must match the column names in L.
+
 
 ```{r}
-bk_cwm_traits_rda <- 
-  rda(formula = bk_cwm_traits_env[traits] ~ MTmax.01 + MTmin.07 + altitude + solar_rad, data = bk_cwm_traits_env)
-print(bk_cwm_traits_rda)
+cfr_dbFD_traits <-
+  dbFD( x = q_cfr_sub, 
+        a = l_cfr,
+        w.abun = TRUE, 
+        calc.FDiv = TRUE, 
+        calc.CWM = TRUE,
+        corr = "cailliez" )
+
+```
+
+
+```{r}
+## Get the CWM value data.frame
+cwm_traits_cfr <- cfr_dbFD_traits$CWM
+cwm_traits_cfr$plot <- row.names( cwm_traits_cfr )
+```
+
+### Plot CWM trait-trait relationships
+
+```{r}
+ggpairs(select(cwm_traits_cfr, -plot))
+```
+
+
+## RDA of CWM traits with environment (CWM-RDA)
+
+Perform RDA on the calculated CWMs.
+
+Add the plot environmental values to the CWM matrix
+
+```{r}
+cwm_traits_cfr_env <- inner_join(cwm_traits_cfr, r_cfr, by = c("plot" = "plot_smpl"))
+```
+
+
+```{r}
+cwm_traits_cfr_rda <- 
+  rda(formula = cwm_traits_cfr[traits] ~ MTmax.01 + MTmin.07 + Elevation + Solar_Rad, 
+      data = cwm_traits_cfr_env, scale = TRUE)
+print(cwm_traits_cfr_rda)
 ```
 
 
 Get coefficients and R-squared values
 
 ```{r}
-coef(bk_cwm_traits_rda)
+coef(cwm_traits_cfr_rda)
 ```
 
 ```{r}
-RsquareAdj(bk_cwm_traits_rda)
+RsquareAdj(cwm_traits_cfr_rda)
 ```
 
 Interestingly, not much more than we got with individuals.
 
+### Tri-plot - scaling = 1
 
 ```{r}
-plot( bk_cwm_traits_rda, type='none', scaling = 1 )
-points( bk_cwm_traits_rda, pch=20, cex=0.8, scaling = 1 )
-text(bk_cwm_traits_rda,display='species',col='red',axis.bp=TRUE, scaling = 1)
-text(bk_cwm_traits_rda,display='bp', scaling = 1)
+plot( cwm_traits_cfr_rda, type='none', scaling = 1 )
+points( cwm_traits_cfr_rda, pch=20, cex=0.8, scaling = 1 )
+text(cwm_traits_cfr_rda,display='species',col='black',axis.bp=TRUE, scaling = 1)
+text(cwm_traits_cfr_rda,display='bp', scaling = 1)
+```
+
+### Tri-plot - scaling = 2
+
+```{r}
+plot( cwm_traits_cfr_rda, type='none', scaling = 2 )
+points( cwm_traits_cfr_rda, pch=20, cex=0.8, scaling = 2 )
+text(cwm_traits_cfr_rda,display='species',col='black',axis.bp=TRUE, scaling = 2)
+text(cwm_traits_cfr_rda,display='bp', scaling = 2)
 ```
 
 
+### Modify R, L, and Q matrices for further analyses
+
+The R, L, and Q matrices need to be modified to that they are in the exact format needed for fourth-corner and RLQ analysis.
+
 ```{r}
-plot( bk_cwm_traits_rda, type='none', scaling = 2 )
-points( bk_cwm_traits_rda, pch=20, cex=0.8, scaling = 2 )
-text(bk_cwm_traits_rda,display='species',col='red',axis.bp=TRUE, scaling = 2)
-text(bk_cwm_traits_rda,display='bp', scaling = 2)
+r_cfr_mat <- r_cfr[env_vars]
+row.names(r_cfr_mat) <- r_cfr$plot
+
+l_cfr_mat <- l_cfr
+names(l_cfr_mat) <- sub(" ", ".", names(l_cfr_mat))
+
+q_cfr_mat <- q_cfr_sub
+q_cfr_mat <- as.data.frame(q_cfr_mat)
+row.names(q_cfr_mat) <- names(l_cfr_mat)
 ```
 
-# Randomization approaches to test if CWMs show signes of environmental filtering
+
+## Randomization approaches to test if CWMs show signes of environmental filtering
 
 In this example, we will use 'indpendent swap' ranomizaiton.
-
 The work flow here is to apply the randomization/ permutation on the L matrix.
 Then recalculate CWMs.
 Store the CWM values for comparison to the original values later.
@@ -620,14 +547,14 @@ Store the CWM values for comparison to the original values later.
 ```{r, message=FALSE, eval = FALSE}
 ## Choose number of iterations
 iter_n <- 999
-cwm_rand_all <- vector()
+cwm_cfr_rand_all <- vector()
 
 for (iter in 1:iter_n){
   ## Shuffle the L matrix
-  l_rand <- randomizeMatrix(l_mat, null.model = "independentswap")
+  l_rand <- randomizeMatrix(l_cfr_mat, null.model = "independentswap")
   
   ## Calculate CWM values
-  cwm_rand <- dbFD( x = q_mat, 
+  cwm_rand <- dbFD( x = q_cfr_mat, 
                     a = l_rand,
                     w.abun = TRUE, 
                     calc.FDiv = FALSE, 
@@ -640,10 +567,10 @@ for (iter in 1:iter_n){
   cwm_rand$plot <- row.names(cwm_rand)
   
   ## Add this iteration to the full dataset
-  cwm_rand_all <- rbind(cwm_rand_all, cwm_rand)
+  cwm_cfr_rand_all <- rbind(cwm_cfr_rand_all, cwm_rand)
 }
 
-save(cwm_rand_all, file = "cwm_rand_all.RData")
+save(cwm_cfr_rand_all, file = "cwm_cfr_rand_all.RData")
 
 ```
 
@@ -652,55 +579,53 @@ After generating random CWM sets, aggregate the data.
 
 ```{r}
 ## Load in the saved randomization results
-load("cwm_rand_all.RData")
+load("cwm_cfr_rand_all.RData")
 
 ## Calculate the mean values
-cwm_rand_mean <- cwm_rand_all %>%
+cwm_rand_mean <- cwm_cfr_rand_all %>%
   group_by(plot) %>%
-  summarise(max_leaf_width_cm = mean(max_leaf_width_cm),
-            leaf_thickness_mm = mean(leaf_thickness_mm),
-            lma = mean(lma),
-            fwc = mean(fwc),
-            lwr = mean(lwr),
-            twig_fwc = mean(twig_fwc))
-  
+  summarise(LMA = mean(LMA),
+            LWR = mean(LWR),
+            Lf_Thick = mean(Lf_Thick),
+            Lf_Width = mean(Lf_Width),
+            FWC = mean(FWC),
+            Twig_FWC = mean(Twig_FWC))
+
 ## Calculate the SD values
-cwm_rand_sd <- cwm_rand_all %>%
+cwm_rand_sd <- cwm_cfr_rand_all %>%
   group_by(plot) %>%
-  summarise(max_leaf_width_cm = sd(max_leaf_width_cm),
-            leaf_thickness_mm = sd(leaf_thickness_mm),
-            lma = sd(lma),
-            fwc = sd(fwc),
-            lwr = sd(lwr),
-            twig_fwc = sd(twig_fwc))
-
-
+  summarise(LMA = sd(LMA),
+            LWR = sd(LWR),
+            Lf_Thick = sd(Lf_Thick),
+            Lf_Width = sd(Lf_Width),
+            FWC = sd(FWC),
+            Twig_FWC = sd(Twig_FWC))
 ```
 
 Get the observed values and calculate SES
 
 ```{r}
-cwm_obs <- select(bk_cwm_traits, max_leaf_width_cm:twig_fwc)
+cwm_obs_cfr <- select(cwm_traits_cfr, LMA:Twig_FWC )
 
 ## Check that they are in the same order
-if( !all(row.names(cwm_obs)==cwm_rand_mean$plot) ){
-  print("WARNING - CWM_OBS ROWS DO NOT MATCH CWM_MEAN ROWS")
+if( !all(row.names(cwm_obs_cfr)==cwm_rand_mean$plot) ){
+  print("WARNING - cwm_obs_cfr ROWS DO NOT MATCH CWM_MEAN ROWS")
 }
 
 ## Calculate SES values
-cwm_ses <- (cwm_obs - select(cwm_rand_mean, -plot)) / select(cwm_rand_sd, -plot)
+cwm_ses_cfr <- (cwm_obs_cfr - select(cwm_rand_mean, -plot)) / select(cwm_rand_sd, -plot)
 
 ## Make a logical matrix
-cwm_ses_sig <- abs(cwm_ses) >= 1.96
-colSums(cwm_ses_sig)
+cwm_ses_cfr_sig <- abs(cwm_ses_cfr) >= 1.96
+colSums(cwm_ses_cfr_sig)
 
 ```
 
 Based on these results, and the very small number of plots whose CWM values that are significant when considering the null distribution, it seems that there is little evidence for environmental filtering here.
 
 ```{r}
-apply(cwm_ses, MARGIN = 2, mean)
-apply(cwm_ses, MARGIN = 2, t.test)
+apply(cwm_ses_cfr, MARGIN = 2, mean)
+apply(cwm_ses_cfr, MARGIN = 2, t.test)
 
 ```
 
@@ -709,8 +634,8 @@ Grouping all values together, there's some indication that FWC is gnerally less 
 Plot the distributions of the SES values for each trait
 
 ```{r}
-cwm_ses_temp <- cwm_ses
-cwm_ses_temp$plot <- row.names(cwm_ses)
+cwm_ses_temp <- cwm_ses_cfr
+cwm_ses_temp$plot <- row.names(cwm_ses_cfr)
 cwm_ses_temp_long <- tidyr::gather(cwm_ses_temp, "trait", "value", 1:6)
 
 ggplot(data = cwm_ses_temp_long, aes(x = value)) +
@@ -728,26 +653,26 @@ ggplot(data = cwm_ses_temp_long, aes(x = value)) +
 
 ```{r}
 ## Correspondence analysis of the L matrix/table 
-l_coa <- dudi.coa(l_mat, scannf = FALSE)
+l_cfr_coa <- dudi.coa(l_cfr_mat, scannf = FALSE)
 
 ## PCA of the R and Q data tables
-r_pca <- dudi.pca(r_mat, row.w = l_coa$lw, scannf = FALSE)
-q_pca <- dudi.pca(q_mat, row.w = l_coa$cw, scannf = FALSE)
+r_cfr_pca <- dudi.pca(scale(r_cfr_mat), row.w = l_cfr_coa$lw, scannf = FALSE)
+q_cfr_pca <- dudi.pca(scale(q_cfr_mat), row.w = l_cfr_coa$cw, scannf = FALSE)
 
 ## Run RLQ function
-bk_rlq <- rlq(r_pca, l_coa, q_pca, scannf = FALSE)
+cfr_rlq <- rlq(r_cfr_pca, l_cfr_coa, q_cfr_pca, scannf = FALSE)
 
 
 ## Plot the result
-plot(bk_rlq)
+plot(cfr_rlq)
 ```
 
 
 Make tri-plot from RLQ results
 
 ```{r}
-s.arrow(bk_rlq$c1, xlim=c(-1,1), boxes = FALSE)
-s.label(bk_rlq$li, add.plot=T, clab=1.5)
+s.arrow(cfr_rlq$c1, xlim=c(-1,1), boxes = FALSE)
+s.label(cfr_rlq$li, add.plot=T, clab=1.5)
 ```
 
 
@@ -755,31 +680,36 @@ s.label(bk_rlq$li, add.plot=T, clab=1.5)
 
 ```{r}
 nrepet <- 999 
-bk_fourthcorner <- fourthcorner(r_mat, 
-                                l_mat, 
-                                q_mat, 
-                                modeltype = 6,
-                                p.adjust.method.G = "none", 
-                                p.adjust.method.D = "none", 
-                                nrepet = nrepet)
+cfr_fourthcorner <- fourthcorner(as.data.frame(scale(r_cfr_mat)), 
+                                 l_cfr_mat, 
+                                 as.data.frame(scale(q_cfr_mat)), 
+                                 modeltype = 6,
+                                 p.adjust.method.G = "none", 
+                                 p.adjust.method.D = "none", 
+                                 nrepet = nrepet)
 
-plot(bk_fourthcorner, alpha = 0.05, col = c("white", "grey", "black"))
+plot(cfr_fourthcorner, alpha = 0.05, col = c("white", "grey", "black"))
 
 ```
 
-Here's the fourth-corner analysis treating the L matrix as presence/absence, rather than relative percent cover.
+```{r}
+print(cfr_fourthcorner)
+```
+
+
+Here's the fourth-corner analysis treating the L cfr_matrix as presence/absence, rather than relative percent cover.
 
 ```{r}
-bk_fourthcorner_pa <- fourthcorner(r_mat, 
-                                   l_mat, 
-                                   q_mat, 
-                                   tr01 = TRUE,
-                                   modeltype = 6,
-                                   p.adjust.method.G = "none", 
-                                   p.adjust.method.D = "none", 
-                                   nrepet = nrepet)
+cfr_fourthcorner_pa <- fourthcorner(r_cfr_mat, 
+                                    l_cfr_mat, 
+                                    q_cfr_mat, 
+                                    tr01 = TRUE,
+                                    modeltype = 6,
+                                    p.adjust.method.G = "none", 
+                                    p.adjust.method.D = "none", 
+                                    nrepet = nrepet)
 
-plot(bk_fourthcorner_pa, alpha = 0.05, col = c("white", "grey", "black"))
+plot(cfr_fourthcorner_pa, alpha = 0.05, col = c("white", "grey", "black"))
 
 ```
 
